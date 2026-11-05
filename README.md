@@ -4,14 +4,17 @@ Vite + TypeScript + PixiJS v8 展位全屏舞台。初始显示深棕色幕布�
 
 舞台逻辑尺寸固定为 1920×1080，按 `Math.min(窗口宽 / 1920, 窗口高 / 1080)` 等比缩放并居中，空余区域保持深棕色。保留中央白色标题和左上角实时视口宽高。全屏被拒绝时显示提示，允许再次尝试。
 
-在 PowerShell 中启动：
+推荐在项目文件夹中双击 `start.cmd`：自动定位项目并启动服务、打开浏览器。使用期间保持启动窗口开启，关闭窗口或重启电脑后需要重新启动。
+
+也可以在任意目录的 PowerShell 中启动：
 
 ```powershell
-Set-Location -LiteralPath 'C:\Users\曹钰瑄\Desktop\e-projects'
-npm.cmd run dev
+& 'D:\DevTools\nodejs\npm.cmd' --prefix 'C:\Users\曹钰瑄\Desktop\e-projects' run dev
 ```
 
 打开 http://127.0.0.1:5173/ 。按 Ctrl+C 停止服务。
+
+若浏览器提示“拒绝连接”，先检查启动窗口是否仍在运行。这个地址是本机服务地址，服务关闭时无法访问。若提示端口 5173 已占用，先直接打开上述网址，不要重复启动。
 
 PowerShell 中使用 `npm.cmd`，避免系统执行策略拦截 `npm.ps1`；无需修改执行策略。
 
