@@ -1,16 +1,22 @@
-import { Application, Text } from 'pixi.js';
+import { Application } from 'pixi.js';
 import './style.css';
+import { actOneConfig } from './config/act-one';
+import { ActOneScene } from './scenes/act-one';
 
 const stage = document.querySelector<HTMLElement>('#stage')!;
 const viewportSize = document.querySelector<HTMLDivElement>('#viewport-size')!;
 const entrance = document.querySelector<HTMLElement>('#entrance')!;
 const enterButton = document.querySelector<HTMLButtonElement>('#enter-button')!;
 const status = document.querySelector<HTMLParagraphElement>('#entrance-status')!;
-const DESIGN_WIDTH = 1920;
-const DESIGN_HEIGHT = 1080;
+const DESIGN_WIDTH = actOneConfig.stage.width;
+const DESIGN_HEIGHT = actOneConfig.stage.height;
 let app: Application | undefined;
 let ready = false;
 let entering = false;
+const params = new URLSearchParams(location.search);
+const scenePreview = import.meta.env.DEV && params.get('preview') === 'act-one';
+const time = params.get('time');
+const previewTime = scenePreview && time !== null && Number.isFinite(Number(time)) ? Math.max(0, Number(time)) : null;
 
 function resize(): void {
   const width = window.innerWidth;
@@ -23,11 +29,12 @@ function resize(): void {
 }
 
 function syncFullscreen(): void {
-  const active = document.fullscreenElement === document.documentElement && ready;
+  const active = (scenePreview || document.fullscreenElement === document.documentElement) && ready;
   stage.hidden = !active;
   entrance.hidden = active;
   resize();
-  if (active) {
+  if (!ready) return;
+  if (active && !document.hidden && previewTime === null) {
     app?.start();
   } else {
     app?.stop();
@@ -36,6 +43,7 @@ function syncFullscreen(): void {
 
 resize();
 window.addEventListener('resize', resize);
+document.addEventListener('visibilitychange', syncFullscreen);
 document.addEventListener('fullscreenchange', () => {
   syncFullscreen();
   if (!document.fullscreenElement && ready) {
@@ -72,35 +80,29 @@ async function main(): Promise<void> {
   await app.init({
     width: DESIGN_WIDTH,
     height: DESIGN_HEIGHT,
-    background: '#352218',
+    background: actOneConfig.colors.background,
     antialias: true,
     resolution: window.devicePixelRatio || 1,
     autoDensity: true,
     autoStart: false,
   });
 
-  const title = new Text({
-    text: '嫦娥奔月 · 舞台测试',
-    style: {
-      fontFamily: ['Microsoft YaHei', 'PingFang SC', 'sans-serif'],
-      fontSize: 48,
-      fill: '#ffffff',
-    },
-  });
-  title.anchor.set(0.5);
-  title.position.set(app.screen.width / 2, app.screen.height / 2);
-  app.stage.addChild(title);
+  const scene = new ActOneScene();
+  if (previewTime !== null) scene.seek(previewTime);
+  app.stage.addChild(scene);
+  app.ticker.add(scene.update);
   app.canvas.setAttribute('role', 'img');
-  app.canvas.setAttribute('aria-label', '嫦娥奔月 · 舞台测试');
+  app.canvas.setAttribute('aria-label', '第一幕：后羿得药。暖光宣纸幕布，两侧黛蓝山峦，顶部云纹。');
   stage.appendChild(app.canvas);
   ready = true;
   enterButton.disabled = false;
   status.textContent = '';
   syncFullscreen();
+  app.render();
 }
 
 main().catch((error: unknown) => {
-  app?.stop();
+  app?.ticker?.stop();
   status.textContent = '舞台初始化失败，请刷新页面或检查浏览器图形加速设置。';
   console.error(error);
 });
