@@ -2,6 +2,9 @@ import { BlurFilter, Container, FillGradient, Graphics, Rectangle, Text, type Ti
 import { actOneConfig as config } from '../config/act-one';
 import { charactersConfig as actors } from '../config/characters';
 import { HouyiPuppet, QueenPuppet } from '../characters/puppets';
+import { receivingHand, receivingPose } from '../characters/poses';
+import { handoffConfig } from '../config/handoff';
+import { HandoffController } from '../interaction/handoff';
 
 const { width, height } = config.stage;
 
@@ -46,6 +49,13 @@ export class ActOneScene extends Container {
   private readonly inscription = new Container();
   readonly houyi = new HouyiPuppet();
   readonly queen = new QueenPuppet();
+  readonly handoff = new HandoffController(receivingHand, () => this.emit('handoff-complete'));
+  private readonly interactionLayer = new Container({ label: '药瓶交接与光效' });
+  private readonly trail: { graphic: Graphics; age: number }[] = [];
+  private readonly success = new Graphics();
+  private trailClock = 0;
+  private trailIndex = 0;
+  private detached = false;
 
   constructor() {
     super();
@@ -59,10 +69,74 @@ export class ActOneScene extends Container {
     this.addChild(cast);
     this.drawTitle();
     this.drawFrame();
+    this.addChild(this.interactionLayer);
+    for (let i = 0; i < handoffConfig.trail.count; i++) {
+      const graphic = new Graphics().circle(0, 0, handoffConfig.trail.radius).fill({ color: actors.bottle.haloColor, alpha: 0.3 })
+        .circle(0, 0, 8).fill({ color: actors.bottle.color, alpha: 0.5 });
+      graphic.visible = false;
+      this.interactionLayer.addChild(graphic);
+      this.trail.push({ graphic, age: handoffConfig.trail.lifetime });
+    }
+    this.interactionLayer.addChild(this.success);
     this.seek(0);
   }
 
-  readonly update = (ticker: Ticker): void => this.seek(this.elapsed + ticker.deltaMS / 1000);
+  readonly update = (ticker: Ticker): void => {
+    const dt = Math.min(ticker.deltaMS / 1000, 0.05);
+    this.seek(this.elapsed + dt);
+    this.updateHandoff(dt);
+  };
+
+  private updateHandoff(dt: number): void {
+    const c = handoffConfig;
+    this.handoff.update(dt);
+    this.queen.setOfferingPose(c.offering.startAngle + (c.offering.endAngle - c.offering.startAngle) * this.handoff.offerProgress);
+    if (this.handoff.offerProgress === 1 && !this.detached) {
+      // 换父容器时保持舞台坐标；之后药瓶只受交接状态机控制。
+      const start = this.toLocal(this.queen.bottle.toGlobal({ x: 0, y: 0 }));
+      this.interactionLayer.addChild(this.queen.bottle);
+      this.queen.bottle.rotation = 0;
+      this.queen.bottle.position.copyFrom(start);
+      this.handoff.setPath(start);
+      this.detached = true;
+      this.handoff.update(0);
+    }
+    const pose = receivingPose(this.handoff.armProgress);
+    this.houyi.setArmPose(pose.shoulder, pose.elbow);
+    const completing = this.handoff.state === 'completing' || this.handoff.state === 'complete';
+    if (this.detached) {
+      const point = completing && this.handoff.completionProgress > 0
+        ? receivingHand(this.handoff.armProgress) : this.handoff.point;
+      this.queen.bottle.position.copyFrom(point);
+      this.queen.bottle.alpha = 1 - this.handoff.completionProgress;
+      this.queen.bottle.visible = this.handoff.state !== 'complete';
+    }
+    this.trailClock += dt;
+    if (this.handoff.state === 'dragging' && this.trailClock >= c.trail.interval) {
+      const particle = this.trail[this.trailIndex++ % this.trail.length];
+      particle.age = 0;
+      particle.graphic.position.copyFrom(this.handoff.point);
+      this.trailClock = 0;
+    }
+    for (const particle of this.trail) {
+      particle.age += dt;
+      const life = Math.max(0, 1 - particle.age / c.trail.lifetime);
+      particle.graphic.visible = life > 0;
+      particle.graphic.alpha = life * 0.5;
+      particle.graphic.scale.set(0.3 + life * 0.7);
+    }
+    this.success.clear();
+    const p = this.handoff.completionProgress;
+    if (completing && p > 0 && p < 1) {
+      const at = receivingHand(1);
+      this.success.position.copyFrom(at);
+      this.success.circle(0, 0, 20 + p * c.success.radius).stroke({ color: c.success.color, alpha: (1 - p) * 0.8, width: 4 });
+      for (let i = 0; i < 12; i++) {
+        const a = i * Math.PI / 6, r = 25 + p * c.success.radius;
+        this.success.circle(Math.cos(a) * r, Math.sin(a) * r, 3 + (1 - p) * 4).fill({ color: c.success.color, alpha: 1 - p });
+      }
+    }
+  }
 
   // 呼吸、云和题字共用播放时间；退出全屏时 ticker 停止，重新进入从原处继续。
   seek(seconds: number): void {
@@ -94,6 +168,8 @@ export class ActOneScene extends Container {
     this.inscription.visible = this.inscription.alpha > 0;
     this.phase = t < 0 ? 'establishing' : t < title.enter ? 'title-enter'
       : this.elapsed < fadeAt ? 'title-hold' : fade < 1 ? 'title-exit' : 'awaiting-elixir';
+    if (this.phase === 'awaiting-elixir') this.handoff.prepare();
+    if (this.handoff.state === 'intro') this.queen.setOfferingPose(handoffConfig.offering.startAngle);
   }
 
   private drawPaper(): void {

@@ -47,7 +47,37 @@ body {
   display: block;
   width: 100% !important;
   height: 100% !important;
+  touch-action: none;
 }
+
+#handoff-ui { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+#handoff-status {
+  position: absolute; bottom: 10%; left: 20%; width: 60%; margin: 0;
+  color: #59422c; text-align: center; font-family: 'STKaiti', 'KaiTi', serif;
+  font-size: clamp(16px, 2.1vw, 34px); letter-spacing: 0.12em;
+  text-shadow: 0 1px 6px #fff0c4;
+}
+.stage-button {
+  pointer-events: auto; position: absolute; padding: 10px 24px;
+  border: 1px solid #805e35; border-radius: 4px;
+  color: #51371f; background: #f4dfb5; font: inherit;
+  font-size: clamp(14px, 1.2vw, 22px); cursor: pointer;
+  box-shadow: 0 3px 12px #40251c33;
+  transition: background 150ms, box-shadow 150ms;
+}
+.stage-button:hover { background: #fff0ca; box-shadow: 0 4px 18px #40251c55; }
+.stage-button:active { background: #e4c48f; }
+.stage-button:focus-visible { outline: 3px solid #805e35; outline-offset: 4px; }
+#assist-button { bottom: 4%; right: 4%; }
+#next-button { bottom: 3%; left: 50%; transform: translateX(-50%); }
+#mortal-arrival {
+  position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; color: #59422c;
+  background: radial-gradient(ellipse, #fff0c4, #e6c995 60%, #886945);
+  font-family: 'STKaiti', 'KaiTi', serif;
+}
+#mortal-arrival p { font-size: clamp(48px, 8vw, 120px); letter-spacing: 0.3em; margin: 0 0 30px; }
+#mortal-arrival span { font-size: clamp(18px, 2vw, 32px); letter-spacing: 0.2em; }
 
 #entrance {
   position: fixed;

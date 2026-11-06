@@ -2,17 +2,25 @@ import { Application } from 'pixi.js';
 import './style.css';
 import { actOneConfig } from './config/act-one';
 import { ActOneScene } from './scenes/act-one';
+import { PointerInputAdapter } from './input/pointer-adapter';
 
 const stage = document.querySelector<HTMLElement>('#stage')!;
 const viewportSize = document.querySelector<HTMLDivElement>('#viewport-size')!;
 const entrance = document.querySelector<HTMLElement>('#entrance')!;
 const enterButton = document.querySelector<HTMLButtonElement>('#enter-button')!;
 const status = document.querySelector<HTMLParagraphElement>('#entrance-status')!;
+const handoffStatus = document.querySelector<HTMLParagraphElement>('#handoff-status')!;
+const assistButton = document.querySelector<HTMLButtonElement>('#assist-button')!;
+const nextButton = document.querySelector<HTMLButtonElement>('#next-button')!;
+const handoffUI = document.querySelector<HTMLDivElement>('#handoff-ui')!;
+const mortalArrival = document.querySelector<HTMLElement>('#mortal-arrival')!;
 const DESIGN_WIDTH = actOneConfig.stage.width;
 const DESIGN_HEIGHT = actOneConfig.stage.height;
 let app: Application | undefined;
 let ready = false;
 let entering = false;
+let input: PointerInputAdapter | undefined;
+let departed = false;
 const params = new URLSearchParams(location.search);
 const scenePreview = import.meta.env.DEV && params.get('preview') === 'act-one';
 const time = params.get('time');
@@ -34,9 +42,10 @@ function syncFullscreen(): void {
   entrance.hidden = active;
   resize();
   if (!ready) return;
-  if (active && !document.hidden && previewTime === null) {
+  if (active && !document.hidden && previewTime === null && !departed) {
     app?.start();
   } else {
+    input?.cancel();
     app?.stop();
   }
 }
@@ -89,11 +98,46 @@ async function main(): Promise<void> {
 
   const scene = new ActOneScene();
   if (previewTime !== null) scene.seek(previewTime);
+  // 开发时跳过入场但继续播放，便于重复检查交接；正式构建不启用。
+  if (scenePreview && params.get('skipIntro') === '1') scene.seek(12);
   app.stage.addChild(scene);
   app.ticker.add(scene.update);
   app.canvas.setAttribute('role', 'img');
   app.canvas.setAttribute('aria-label', '第一幕：后羿求药。后羿立于左侧山石旁，西王母从右上方云层降下，掌中药瓶发出微光。');
   stage.appendChild(app.canvas);
+  const renderHandoffUI = (): void => {
+    const handoff = scene.handoff;
+    if (handoffStatus.textContent !== handoff.message) handoffStatus.textContent = handoff.message;
+    assistButton.hidden = !['ready', 'dragging', 'snapped', 'returning'].includes(handoff.state);
+    nextButton.hidden = handoff.state !== 'complete';
+    stage.dataset.handoffState = handoff.state;
+  };
+  input = new PointerInputAdapter(app.canvas, scene.handoff.input, point => scene.handoff.canGrab(point));
+  app.ticker.add(renderHandoffUI);
+  assistButton.addEventListener('click', () => {
+    input?.cancel();
+    scene.handoff.assist();
+    renderHandoffUI();
+  });
+  scene.on('handoff-complete', () => {
+    // 此业务事件由状态机保证只派发一次，未来可在这里持久化地点解锁状态。
+    window.dispatchEvent(new CustomEvent('mortal-unlocked', { detail: { sceneId: scene.sceneId } }));
+    renderHandoffUI();
+  });
+  nextButton.addEventListener('click', () => {
+    if (scene.handoff.state !== 'complete' || departed) return;
+    departed = true;
+    handoffUI.hidden = true;
+    mortalArrival.hidden = false;
+    window.dispatchEvent(new CustomEvent('navigate-to-mortal'));
+    syncFullscreen();
+  });
+  window.addEventListener('pagehide', () => input?.dispose(), { once: true });
+  if (import.meta.hot) import.meta.hot.dispose(() => {
+    input?.dispose();
+    app?.destroy(true, { children: true });
+  });
+  renderHandoffUI();
   ready = true;
   enterButton.disabled = false;
   status.textContent = '';

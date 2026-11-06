@@ -14,11 +14,28 @@ Vite + TypeScript + PixiJS v8 展位全屏舞台。初始显示深棕色幕布�
 
 人物参数在 `src/config/characters.ts`：初始位置、缩放、关节长度、初始角度、图层、投影和入场时长。占位形状及部件尺寸集中在 `src/characters/puppets.ts`。后羿骨架是 root → torso → head / upperArm → forearm；肩、肘 pivot 都为局部 (0,0)，肘位于大臂末端。默认手臂自然下垂，可用 `HouyiPuppet.setArmPose(肩角度, 肘角度)` 调整姿势，投影会同步。
 
-替换图片时，保留部件 Container 的位置、pivot 和父子层级，只替换其中的 Graphics 美术；将 Sprite 的肩/肘对齐到容器局部原点。骨架工厂也生成投影副本，更换素材时应同步提供相同轮廓的深褐色投影。药瓶挂在 `QueenPuppet.palm` 上，会随西王母整体移动。本轮仅有出场演出，尚未加入接药交互。
+替换图片时，保留部件 Container 的位置、pivot 和父子层级，只替换其中的 Graphics 美术；将 Sprite 的肩/肘对齐到容器局部原点。骨架工厂也生成投影副本，更换素材时应同步提供相同轮廓的深褐色投影。药瓶入场时挂在 `QueenPuppet.palm` 上，西王母赐药动作结束后转入独立的交接图层。
 
-骨架检查命令：`node --experimental-strip-types --test tests/puppets.test.mjs`（Node.js 22.6+）。
+题字结束后出现“拖动发光的药瓶，交给后羿”，西王母用 1.6 秒伸出手臂，然后药瓶可被抓取。鼠标左键按住药瓶沿左下方拖动，位置投影到三次贝塞尔曲线上，弧长进度同步驱动后羿肩、肘关节。距离当前后羿手部 100 个逻辑像素内自动锁定吸附，提示“已接住，可以松手了”。松手后播放光环与光点，手臂收回、药瓶淡出，解锁凡间。半途松手沿原曲线回到西王母掌心，显示“请重新尝试”。按 Esc、切换窗口或指针取消不会误判交接成功。
+
+右下角“辅助完成”走同一成功流程；重复松手和重复点击不会重复解锁。点击“前往凡间”显示“凡间 · 未完待续”的过场题卡，派发 `navigate-to-mortal` 事件，供后续接入第二幕；本轮没有新增第二幕剧情。成功事件 `mortal-unlocked` 每次页面加载至多一次，刷新可重新体验。
+
+交互架构：
+
+- `src/input/semantic.ts` 定义 `GRAB { point }`、`MOVE { point }`、`RELEASE { cancelled? }`；point 使用舞台的 1920×1080 逻辑坐标。
+- `src/input/pointer-adapter.ts` 处理指针捕获、坐标换算、单指针限制、松手及取消，独立于剧情。
+- `src/interaction/handoff.ts` 是不依赖 DOM/PixiJS 的状态机，接收 `scene.handoff.input(event)`。未来 MediaPipe 只需换适配器，映射摄像头坐标并派发同样的语义事件；丢失追踪发送 `RELEASE { cancelled: true }`。
+- `src/interaction/curve.ts` 负责弧长参数化、最近点投影与曲线取点。
+- `src/characters/poses.ts` 负责肩肘姿势和手心正向运动学；`src/scenes/act-one.ts` 根据状态更新人物、拖尾与成功光效。
+- `src/config/handoff.ts` 集中赐药时长、接药姿势、曲线控制点、抓取与吸附半径、返回和收臂时长、光效参数。
+
+人工检查：进入体验后等待约 12 秒；从空白处拖动应无效；药瓶拖到半途松开应复位；再次拖到后羿附近，应提示松手且乱动不能拉走药瓶；松开后应解锁凡间。刷新后验证“辅助完成”，再验证拖动期间退出全屏、重新进入可以重试。窗口缩放后仍须准确抓取。
+
+自动检查命令：`node --experimental-strip-types --test tests/*.test.mjs`（Node.js 22.6+），覆盖骨架、曲线、输入适配、重试、吸附、取消和防重复成功。
 
 本地美术预览（仅开发环境）：`http://127.0.0.1:5173/?preview=act-one`，追加 `&time=5.5` 检查西王母入场中途，`&time=7.5` 检查人物到齐但题字仍在，`&time=12` 检查题字结束后的药瓶。正常首页及生产构建仍通过按钮进入全屏。
+
+快速交互预览：`http://127.0.0.1:5173/?preview=act-one&skipIntro=1` 跳过入场，从赐药动作开始，保持动画运行。不要同时添加冻结画面的 `time` 参数。
 
 推荐在项目文件夹中双击 `start.cmd`：自动定位项目并启动服务、打开浏览器。使用期间保持启动窗口开启，关闭窗口或重启电脑后需要重新启动。
 

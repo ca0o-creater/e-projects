@@ -99,20 +99,22 @@ export class HouyiPuppet extends Container {
 
 export class QueenPuppet extends Container {
   readonly rig = queenRig(config.ink);
+  private readonly shadowRig = queenRig(config.shadow.color);
   readonly palm = new Container({ label: '掌心 / 药瓶挂点' });
   readonly halo = new Container({ label: '药瓶微光' });
+  readonly bottle = new Container({ label: '药瓶（占位光珠）' });
 
   constructor() {
     super({ label: '西王母与药瓶' });
     this.position.set(config.queen.x, config.queen.y);
     this.scale.set(config.queen.scale);
     this.zIndex = config.layers.queen;
-    this.addChild(shadowWrapper(queenRig(config.shadow.color).root), this.rig.root);
-    this.palm.position.set(config.queen.palm.x, config.queen.palm.y);
+    this.addChild(shadowWrapper(this.shadowRig.root), this.rig.root);
+    this.palm.position.set(config.queen.palm.x - this.rig.arm.x, config.queen.palm.y - this.rig.arm.y);
     this.palm.zIndex = config.layers.bottle;
     const c = config.bottle;
     // 圆心在掌心上方一颗半径，底部落在手掌上。
-    const bottle = new Container({ label: '药瓶（占位光珠）' });
+    const bottle = this.bottle;
     bottle.y = -c.radius;
     const halo = new Graphics().circle(0, 0, c.haloRadius).fill(c.haloColor);
     halo.filters = [new BlurFilter({ strength: 14, quality: 4, resolution: 0.5 })];
@@ -124,6 +126,10 @@ export class QueenPuppet extends Container {
       .circle(-5, -5, 5).fill('#ffffff');
     bottle.addChild(cast, this.halo, core);
     this.palm.addChild(bottle);
-    this.rig.root.addChild(this.palm);
+    this.rig.arm.addChild(this.palm);
+  }
+
+  setOfferingPose(angle: number): void {
+    this.rig.arm.rotation = this.shadowRig.arm.rotation = angle;
   }
 }

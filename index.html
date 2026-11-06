@@ -11,7 +11,16 @@
       <button id="enter-button" type="button" disabled>进入体验</button>
       <p id="entrance-status" role="status">正在准备舞台…</p>
     </section>
-    <main id="stage" aria-label="第一幕 · 后羿得药" hidden></main>
+    <main id="stage" aria-label="第一幕 · 后羿得药" hidden>
+      <div id="handoff-ui">
+        <p id="handoff-status" role="status" aria-live="polite"></p>
+        <button id="assist-button" class="stage-button" type="button" hidden>辅助完成</button>
+        <button id="next-button" class="stage-button" type="button" hidden>前往凡间</button>
+      </div>
+      <section id="mortal-arrival" aria-label="凡间" hidden>
+        <p>凡间</p><span>未完待续</span>
+      </section>
+    </main>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
