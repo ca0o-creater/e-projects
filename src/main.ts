@@ -92,7 +92,7 @@ async function main(): Promise<void> {
   app.stage.addChild(scene);
   app.ticker.add(scene.update);
   app.canvas.setAttribute('role', 'img');
-  app.canvas.setAttribute('aria-label', '第一幕：后羿得药。暖光宣纸幕布，两侧黛蓝山峦，顶部云纹。');
+  app.canvas.setAttribute('aria-label', '第一幕：后羿求药。后羿立于左侧山石旁，西王母从右上方云层降下，掌中药瓶发出微光。');
   stage.appendChild(app.canvas);
   ready = true;
   enterButton.disabled = false;

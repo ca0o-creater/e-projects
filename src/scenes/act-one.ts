@@ -1,5 +1,7 @@
 import { BlurFilter, Container, FillGradient, Graphics, Rectangle, Text, type Ticker } from 'pixi.js';
 import { actOneConfig as config } from '../config/act-one';
+import { charactersConfig as actors } from '../config/characters';
+import { HouyiPuppet, QueenPuppet } from '../characters/puppets';
 
 const { width, height } = config.stage;
 
@@ -42,6 +44,8 @@ export class ActOneScene extends Container {
   private readonly glow = new Container();
   private readonly cloudLayers: Container[] = [];
   private readonly inscription = new Container();
+  readonly houyi = new HouyiPuppet();
+  readonly queen = new QueenPuppet();
 
   constructor() {
     super();
@@ -50,6 +54,9 @@ export class ActOneScene extends Container {
     this.drawPaper();
     this.drawMountains();
     this.drawClouds();
+    const cast = new Container({ label: '人物表演层', sortableChildren: true });
+    cast.addChild(this.houyi, this.queen);
+    this.addChild(cast);
     this.drawTitle();
     this.drawFrame();
     this.seek(0);
@@ -66,14 +73,27 @@ export class ActOneScene extends Container {
     this.glow.alpha = config.light.alpha + config.light.breathAmplitude
       * Math.sin(this.elapsed * Math.PI * 2 / config.light.breathPeriod);
     const title = config.title;
+    const clamp = (t: number) => Math.max(0, Math.min(1, t));
+    const houyiProgress = clamp((this.elapsed - actors.houyi.appearAt) / actors.houyi.fadeDuration);
+    this.houyi.alpha = houyiProgress;
+    const queenProgress = clamp((this.elapsed - actors.queen.appearAt) / actors.queen.enterDuration);
+    this.queen.alpha = queenProgress;
+    this.queen.y = actors.queen.startY + (actors.queen.y - actors.queen.startY) * (1 - (1 - queenProgress) ** 3);
+    const arrival = actors.queen.appearAt + actors.queen.enterDuration;
+    const glowTime = Math.max(0, this.elapsed - arrival);
+    this.queen.halo.alpha = clamp(glowTime / actors.bottle.glowFadeDuration)
+      * (actors.bottle.glowAlpha + actors.bottle.pulseAmplitude
+        * Math.sin(glowTime * Math.PI * 2 / actors.bottle.pulsePeriod));
     const t = this.elapsed - title.delay;
     const progress = t < 0 ? 0 : 1 - (1 - Math.min(t / title.enter, 1)) ** 3;
-    const fade = Math.max(0, Math.min(1, (t - title.enter - title.hold) / title.exit));
+    const fadeAt = Math.max(title.delay + title.enter + title.hold,
+      arrival + actors.titleAfterArrival, actors.houyi.appearAt + actors.houyi.fadeDuration);
+    const fade = clamp((this.elapsed - fadeAt) / title.exit);
     this.inscription.y = title.startY + (title.endY - title.startY) * progress;
     this.inscription.alpha = progress * (1 - fade);
     this.inscription.visible = this.inscription.alpha > 0;
     this.phase = t < 0 ? 'establishing' : t < title.enter ? 'title-enter'
-      : t < title.enter + title.hold ? 'title-hold' : fade < 1 ? 'title-exit' : 'ambient';
+      : this.elapsed < fadeAt ? 'title-hold' : fade < 1 ? 'title-exit' : 'awaiting-elixir';
   }
 
   private drawPaper(): void {

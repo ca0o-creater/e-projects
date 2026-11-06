@@ -1,0 +1,18 @@
+// 位置为 1920×1080 舞台坐标；局部形状以各关节为原点，角度为弧度。
+export const charactersConfig = {
+  ink: '#241b18', shadow: { color: '#40251c', x: 4, y: 9, alpha: 0.34, blur: 4 },
+  layers: { houyi: 10, queen: 20, bottle: 30 },
+  houyi: {
+    x: 490, y: 958, scale: 1.05, appearAt: 2.4, fadeDuration: 1.4,
+    torso: { x: 0, y: -235, z: 10 }, head: { x: 8, y: -315, z: 20 },
+    shoulder: { x: 33, y: -265, z: 30 },
+    upperArm: { width: 30, length: 100, rotation: -0.12 },
+    forearm: { width: 23, length: 88, rotation: -0.10 },
+  },
+  queen: { x: 1550, y: 285, startY: 80, scale: 1,
+    appearAt: 4, enterDuration: 3, palm: { x: -169, y: 30 },
+    head: { x: 0, y: -70, z: 20 }, torso: { x: 0, y: 0, z: 10 } },
+  bottle: { radius: 17, haloRadius: 42, color: '#fff5bf', haloColor: '#ffc85f',
+    pulsePeriod: 2.6, glowAlpha: 0.55, pulseAmplitude: 0.15, glowFadeDuration: 0.8 },
+  titleAfterArrival: 1.2,
+} as const;
