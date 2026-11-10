@@ -1,6 +1,7 @@
 import { Application } from 'pixi.js';
 import './style.css';
 import { actOneConfig } from './config/act-one';
+import { actOneIntroEnd } from './config/characters';
 import { ActOneScene } from './scenes/act-one';
 import { PointerInputAdapter } from './input/pointer-adapter';
 
@@ -99,7 +100,7 @@ async function main(): Promise<void> {
   const scene = new ActOneScene();
   if (previewTime !== null) scene.seek(previewTime);
   // 开发时跳过入场但继续播放，便于重复检查交接；正式构建不启用。
-  if (scenePreview && params.get('skipIntro') === '1') scene.seek(12);
+  if (scenePreview && params.get('skipIntro') === '1') scene.seek(actOneIntroEnd);
   app.stage.addChild(scene);
   app.ticker.add(scene.update);
   app.canvas.setAttribute('role', 'img');

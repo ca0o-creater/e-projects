@@ -1,6 +1,6 @@
 import { BlurFilter, Container, FillGradient, Graphics, Rectangle, Text, type Ticker } from 'pixi.js';
 import { actOneConfig as config } from '../config/act-one';
-import { charactersConfig as actors } from '../config/characters';
+import { charactersConfig as actors, actOneIntroEnd } from '../config/characters';
 import { HouyiPuppet, QueenPuppet } from '../characters/puppets';
 import { receivingHand, receivingPose } from '../characters/poses';
 import { handoffConfig } from '../config/handoff';
@@ -160,14 +160,14 @@ export class ActOneScene extends Container {
         * Math.sin(glowTime * Math.PI * 2 / actors.bottle.pulsePeriod));
     const t = this.elapsed - title.delay;
     const progress = t < 0 ? 0 : 1 - (1 - Math.min(t / title.enter, 1)) ** 3;
-    const fadeAt = Math.max(title.delay + title.enter + title.hold,
-      arrival + actors.titleAfterArrival, actors.houyi.appearAt + actors.houyi.fadeDuration);
+    const fadeAt = title.delay + title.enter + title.hold;
     const fade = clamp((this.elapsed - fadeAt) / title.exit);
     this.inscription.y = title.startY + (title.endY - title.startY) * progress;
     this.inscription.alpha = progress * (1 - fade);
     this.inscription.visible = this.inscription.alpha > 0;
     this.phase = t < 0 ? 'establishing' : t < title.enter ? 'title-enter'
-      : this.elapsed < fadeAt ? 'title-hold' : fade < 1 ? 'title-exit' : 'awaiting-elixir';
+      : this.elapsed < fadeAt ? 'title-hold' : fade < 1 ? 'title-exit'
+      : this.elapsed < actOneIntroEnd ? 'characters-enter' : 'awaiting-elixir';
     if (this.phase === 'awaiting-elixir') this.handoff.prepare();
     if (this.handoff.state === 'intro') this.queen.setOfferingPose(handoffConfig.offering.startAngle);
   }
