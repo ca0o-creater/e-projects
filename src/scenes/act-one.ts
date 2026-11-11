@@ -5,6 +5,8 @@ import { HouyiPuppet, QueenPuppet } from '../characters/puppets';
 import { receivingHand, receivingPose } from '../characters/poses';
 import { handoffConfig } from '../config/handoff';
 import { HandoffController } from '../interaction/handoff';
+import { rigConfig, armLengths } from '../config/rig.config';
+import { solveTwoBone } from '../characters/ik';
 
 const { width, height } = config.stage;
 
@@ -101,12 +103,28 @@ export class ActOneScene extends Container {
       this.detached = true;
       this.handoff.update(0);
     }
-    const pose = receivingPose(this.handoff.armProgress);
-    this.houyi.setArmPose(pose.shoulder, pose.elbow);
+    let pose = receivingPose(this.handoff.armProgress);
+    const tracking = ['dragging','snapped'].includes(this.handoff.state)
+      || (this.handoff.state === 'completing' && this.handoff.completionProgress === 0);
+    if (tracking) {
+      const target = this.handoff.point, bounds = rigConfig.targetBounds;
+      const x = Math.max(bounds.minX,Math.min(bounds.maxX,target.x));
+      const y = Math.max(bounds.minY,Math.min(bounds.maxY,target.y+actors.bottle.radius));
+      const solution = solveTwoBone({ x:(x-this.houyi.x)/this.houyi.scale.x-actors.houyi.shoulder.x,
+        y:(y-this.houyi.y)/this.houyi.scale.y-actors.houyi.shoulder.y }, armLengths.upper,armLengths.lower);
+      if(solution) pose=solution;
+    }
+    const limits=rigConfig.houyi.limits;
+    const blend=tracking ? 1 : 1-Math.exp(-dt*6/rigConfig.resetSeconds);
+    const current=this.houyi.rig;
+    this.houyi.setArmPose(
+      current.upperArm.rotation+(Math.max(limits.shoulder[0],Math.min(limits.shoulder[1],pose.shoulder))-current.upperArm.rotation)*blend,
+      current.forearm.rotation+(Math.max(limits.elbow[0],Math.min(limits.elbow[1],pose.elbow))-current.forearm.rotation)*blend);
     const completing = this.handoff.state === 'completing' || this.handoff.state === 'complete';
     if (this.detached) {
       const point = completing && this.handoff.completionProgress > 0
-        ? receivingHand(this.handoff.armProgress) : this.handoff.point;
+        ? this.toLocal(this.houyi.rig.handNode.toGlobal({ x:0, y:0 })) : this.handoff.point;
+      if(completing && this.handoff.completionProgress > 0) point.y-=actors.bottle.radius;
       this.queen.bottle.position.copyFrom(point);
       this.queen.bottle.alpha = 1 - this.handoff.completionProgress;
       this.queen.bottle.visible = this.handoff.state !== 'complete';
@@ -153,6 +171,7 @@ export class ActOneScene extends Container {
     const queenProgress = clamp((this.elapsed - actors.queen.appearAt) / actors.queen.enterDuration);
     this.queen.alpha = queenProgress;
     this.queen.y = actors.queen.startY + (actors.queen.y - actors.queen.startY) * (1 - (1 - queenProgress) ** 3);
+    if(queenProgress===1) this.queen.y+=Math.sin(this.elapsed*Math.PI*2/rigConfig.queen.floatPeriod)*rigConfig.queen.floatAmplitude;
     const arrival = actors.queen.appearAt + actors.queen.enterDuration;
     const glowTime = Math.max(0, this.elapsed - arrival);
     this.queen.halo.alpha = clamp(glowTime / actors.bottle.glowFadeDuration)

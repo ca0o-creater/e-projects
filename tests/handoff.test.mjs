@@ -6,6 +6,8 @@ import { handoffConfig as config } from '../src/config/handoff.ts';
 import { receivingHand, receivingPose } from '../src/characters/poses.ts';
 import { charactersConfig } from '../src/config/characters.ts';
 import { createHouyiRig } from '../src/characters/puppets.ts';
+import { createImageHouyi } from '../src/characters/image-rigs.ts';
+import { Texture } from 'pixi.js';
 
 const start = { x: 1380, y: 285 };
 const curve = new HandoffCurve(start, ...config.controlPoints, receivingHand(1));
@@ -113,7 +115,7 @@ test('辅助完成覆盖等待、拖动、吸附、返回阶段，重复点击�
 });
 
 test('目标手部计算与实际 Pixi 骨架在所有姿势下吻合，药瓶底部落在掌心', () => {
-  const rig = createHouyiRig('#241b18');
+  const rig = createImageHouyi(undefined, Texture.EMPTY);
   const c = charactersConfig.houyi;
   rig.root.position.set(c.x, c.y);
   rig.root.scale.set(c.scale);
@@ -121,7 +123,7 @@ test('目标手部计算与实际 Pixi 骨架在所有姿势下吻合，药瓶�
     const pose = receivingPose(p);
     rig.upperArm.rotation = pose.shoulder;
     rig.forearm.rotation = pose.elbow;
-    const hand = rig.forearm.toGlobal({ x: 3, y: c.forearm.length + 7 });
+    const hand = rig.handNode.toGlobal({ x: 0, y: 0 });
     const target = receivingHand(p);
     assert.ok(distance(hand, { x: target.x, y: target.y + charactersConfig.bottle.radius }) < 0.001);
   }

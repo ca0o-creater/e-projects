@@ -1,4 +1,5 @@
 import { handoffConfig as config } from '../config/handoff.ts';
+import { rigConfig } from '../config/rig.config.ts';
 import type { SemanticInput, StagePoint } from '../input/semantic.ts';
 import { distance, HandoffCurve } from './curve.ts';
 
@@ -47,6 +48,13 @@ export class HandoffController {
   }
 
   readonly input = (event: SemanticInput): void => {
+    if ('point' in event && (!Number.isFinite(event.point.x) || !Number.isFinite(event.point.y))) return;
+    if ('point' in event) {
+      const b=rigConfig.targetBounds;
+      if(event.point.x<b.minX || event.point.x>b.maxX || event.point.y<b.minY || event.point.y>b.maxY) {
+        this.input({type:'RELEASE',cancelled:true}); return;
+      }
+    }
     if (event.type === 'GRAB' && this.canGrab(event.point)) {
       this.retry = false;
       this.transition('dragging');

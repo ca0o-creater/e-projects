@@ -54,3 +54,29 @@ PowerShell 中使用 `npm.cmd`，避免系统执行策略拦截 `npm.ps1`；无�
 重新安装锁定的依赖：`npm.cmd ci`。
 
 类型检查并构建：`npm.cmd run build`。生成文件位于 `dist/`。
+
+## PNG 人物与 IK（当前版本）
+
+当前运行时已采用 `public/assets/houyi.png`（后羿-背面藏杆）和 `public/assets/queen.png`（西王母-瑶池清韵，下半张皮影），覆盖上文的占位剪影方案。源图为 1024×1536 的带纸底整图；没有修改源图，使用 Pixi 多边形遮罩划分后羿躯干、右上臂、右下臂，并裁出西王母主体。遮罩仍有纸底残留和近似轮廓，不能当作已经精修的透明分层美术。后羿左臂固定，弓为固定 Graphics 占位；西王母袖臂尚未拆分，保持原图姿态，采用整体悬浮和固定手部末端挂点，不再播放独立抬臂动作。
+
+`src/config/rig.config.ts` 是本轮的校准入口：
+
+| 字段 | 微调用途 |
+| --- | --- |
+| `houyi.shoulder / elbow / hand` | 原图肩圆环、肘圆环、掌心坐标；臂长 `armLengths` 根据两段距离与 scale 自动推导 |
+| `houyi.upperArm/forearm.pivotOffset` | 每块美术的原图转轴，与对应肩/肘坐标保持一致 |
+| `upperArm/forearm.baseRotation` | 原图部件方向补偿，使局部骨骼统一沿 +Y；改变关节坐标后需同步校准方向 |
+| `textureSize` | 原 PNG 尺寸，加载时检查，所有部件共用这一纹理尺寸 |
+| `body/upperArm/forearm.polygon`、`bodyHoles` | 外轮廓与镂空区域遮罩，用于精修边缘与清理纸底 |
+| `houyi.origin / scale` | 人物的局部原点与美术尺寸 |
+| `houyi.rest / limits` | 自然下垂角度与肩肘旋转边界 |
+| `queen.handOffset / origin / scale` | 药瓶挂点与主体定位 |
+| `queen.floatAmplitude / floatPeriod` | 整体悬浮幅度与周期 |
+| `queen.armLimits` | 为未来分层袖臂预留的 -30°～45°范围，当前固定袖臂不使用 |
+| `targetBounds / resetSeconds` | 输入边界与平滑复位时间尺度 |
+
+`image-rigs.ts` 以负 pivotOffset 放置 Sprite，部件校正旋转放在美术子容器中。骨架为 root → torso → shoulderNode → upperArm 容器 → elbowNode → forearm 美术 / handNode。美术的缩放与 baseRotation 不会污染子关节的坐标。原占位骨架工厂保留用于兼容旧测试，页面实际使用 createImageHouyi。
+
+`ik.ts` 解算两个刚性链杆：目标过远时伸直，过近时钳制到内圆，可达目标使用余弦定理，选择肘部屏幕 Y 较大的分支。药瓶路径点先转换到肩的局部空间，再解算肩肘角度。无效数字被拒绝，越界输入或失焦取消本次拖动并平滑复位。吸附后的收臂期间药瓶跟随实际 handNode，避免与手部脱离。
+
+验证：进入体验等人物出场；拖动药瓶观察右肩和右肘，半途松手检查复位，将鼠标拖出舞台检查取消；再次拖到后羿附近松开检查解锁。开发时可用 `?preview=act-one&skipIntro=1` 跳过题字与入场。

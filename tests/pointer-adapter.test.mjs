@@ -33,8 +33,8 @@ test('输入适配器换算16:9舞台坐标、只抓药瓶、屏外松手仅发�
   canvas.dispatchEvent(pointer('pointerdown', { pointerId: 2, isPrimary: false }));
   canvas.dispatchEvent(pointer('pointermove', { pointerId: 2 }));
   assert.equal(events.length, 1);
-  canvas.dispatchEvent(pointer('pointermove', { clientX: 1200, clientY: -60 }));
-  assert.deepEqual(events[1], { type: 'MOVE', point: { x: 2160, y: -240 } });
+  canvas.dispatchEvent(pointer('pointermove', { clientX: 900, clientY: 200 }));
+  assert.deepEqual(events[1], { type: 'MOVE', point: { x: 1560, y: 280 } });
   canvas.dispatchEvent(pointer('pointerup'));
   canvas.dispatchEvent(pointer('pointerup'));
   assert.deepEqual(events[2], { type: 'RELEASE', cancelled: false });
@@ -48,7 +48,8 @@ test('输入适配器取消、失焦、销毁均清除捕获并派发取消，�
   globalThis.window = new EventTarget();
   const canvas = new Canvas(), events = [];
   const adapter = new PointerInputAdapter(canvas, e => events.push(e), () => true);
-  for (const cancel of [() => canvas.dispatchEvent(pointer('pointercancel')), () => window.dispatchEvent(new Event('blur')), () => adapter.dispose()]) {
+  for (const cancel of [() => canvas.dispatchEvent(pointer('pointercancel')), () => window.dispatchEvent(new Event('blur')),
+    () => canvas.dispatchEvent(pointer('pointermove', {clientX:1200,clientY:-60})), () => adapter.dispose()]) {
     canvas.dispatchEvent(pointer('pointerdown'));
     cancel();
     assert.deepEqual(events.at(-1), { type: 'RELEASE', cancelled: true });

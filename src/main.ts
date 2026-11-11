@@ -3,6 +3,7 @@ import './style.css';
 import { actOneConfig } from './config/act-one';
 import { actOneIntroEnd } from './config/characters';
 import { ActOneScene } from './scenes/act-one';
+import { loadRigAssets } from './characters/image-rigs';
 import { PointerInputAdapter } from './input/pointer-adapter';
 
 const stage = document.querySelector<HTMLElement>('#stage')!;
@@ -97,6 +98,7 @@ async function main(): Promise<void> {
     autoStart: false,
   });
 
+  await loadRigAssets();
   const scene = new ActOneScene();
   if (previewTime !== null) scene.seek(previewTime);
   // 开发时跳过入场但继续播放，便于重复检查交接；正式构建不启用。

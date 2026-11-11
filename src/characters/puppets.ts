@@ -1,5 +1,6 @@
 import { BlurFilter, Container, Graphics } from 'pixi.js';
 import { charactersConfig as config } from '../config/characters.ts';
+import { createImageHouyi, createImageQueen } from './image-rigs.ts';
 
 // 每个 part 容器只放局部美术。换 Sprite 时沿用容器及局部原点，无需修改关节树。
 function part(name: string, x: number, y: number, z: number, art: Graphics): Container {
@@ -79,8 +80,8 @@ function shadowWrapper(rig: Container): Container {
 }
 
 export class HouyiPuppet extends Container {
-  readonly rig = createHouyiRig(config.ink);
-  private readonly shadowRig = createHouyiRig(config.shadow.color);
+  readonly rig = createImageHouyi();
+  private readonly shadowRig = createImageHouyi(config.shadow.color);
 
   constructor() {
     super({ label: '后羿' });
@@ -98,8 +99,8 @@ export class HouyiPuppet extends Container {
 }
 
 export class QueenPuppet extends Container {
-  readonly rig = queenRig(config.ink);
-  private readonly shadowRig = queenRig(config.shadow.color);
+  readonly rig = createImageQueen();
+  private readonly shadowRig = createImageQueen(config.shadow.color);
   readonly palm = new Container({ label: '掌心 / 药瓶挂点' });
   readonly halo = new Container({ label: '药瓶微光' });
   readonly bottle = new Container({ label: '药瓶（占位光珠）' });
@@ -110,7 +111,7 @@ export class QueenPuppet extends Container {
     this.scale.set(config.queen.scale);
     this.zIndex = config.layers.queen;
     this.addChild(shadowWrapper(this.shadowRig.root), this.rig.root);
-    this.palm.position.set(config.queen.palm.x - this.rig.arm.x, config.queen.palm.y - this.rig.arm.y);
+    this.palm.position.set(0, 0);
     this.palm.zIndex = config.layers.bottle;
     const c = config.bottle;
     // 圆心在掌心上方一颗半径，底部落在手掌上。
@@ -129,7 +130,8 @@ export class QueenPuppet extends Container {
     this.rig.arm.addChild(this.palm);
   }
 
-  setOfferingPose(angle: number): void {
-    this.rig.arm.rotation = this.shadowRig.arm.rotation = angle;
+  setOfferingPose(_angle: number): void {
+    // 整图袖臂尚未分层，保持原姿态；手部挂点跟随整个主体平移。
+    this.rig.arm.rotation = this.shadowRig.arm.rotation = 0;
   }
 }

@@ -15,8 +15,8 @@ export function receivingHand(progress: number) {
   const { shoulder, elbow } = receivingPose(progress);
   const angle = shoulder + elbow;
   const x = c.shoulder.x - Math.sin(shoulder) * c.upperArm.length
-    + Math.cos(angle) * 3 - Math.sin(angle) * (c.forearm.length + 7);
+    - Math.sin(angle) * c.forearm.length;
   const y = c.shoulder.y + Math.cos(shoulder) * c.upperArm.length
-    + Math.sin(angle) * 3 + Math.cos(angle) * (c.forearm.length + 7);
+    + Math.cos(angle) * c.forearm.length;
   return { x: c.x + x * c.scale, y: c.y + y * c.scale - actors.bottle.radius };
 }

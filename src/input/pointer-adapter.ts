@@ -39,7 +39,11 @@ export class PointerInputAdapter {
   };
 
   private readonly move = (event: PointerEvent): void => {
-    if (this.pointerId === event.pointerId) this.send({ type: 'MOVE', point: this.point(event) });
+    if (this.pointerId === event.pointerId) {
+      const point=this.point(event);
+      if(point.x<0 || point.x>actOneConfig.stage.width || point.y<0 || point.y>actOneConfig.stage.height) this.cancel();
+      else this.send({ type: 'MOVE', point });
+    }
     else if (this.pointerId === null) this.canvas.style.cursor = this.canGrab(this.point(event)) ? 'grab' : 'default';
   };
 
