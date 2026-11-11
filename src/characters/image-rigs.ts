@@ -34,6 +34,18 @@ export function createImageHouyi(tint?:string, suppliedTexture?:Texture) {
   // 美术校正容器与关节链分开，避免 baseRotation/纹理缩放累积到下一级骨骼。
   shoulderNode.addChild(upperArm); upperArm.addChild(elbowNode); elbowNode.y=armLengths.upper;
   elbowNode.addChild(forearm); torso.addChild(shoulderNode);
+  // 用原图圆环铆钉覆盖两个独立遮罩的边界，弯曲时保持接缝闭合。
+  for(const [node,center,radius] of [
+    [shoulderNode,c.shoulder,c.jointCoverRadius.shoulder],
+    [elbowNode,c.elbow,c.jointCoverRadius.elbow],
+  ] as const) {
+    const cover=new Container({label:'关节接缝盖片'});cover.scale.set(c.scale);
+    const sprite=new Sprite(texture);sprite.position.set(-center.x,-center.y);
+    if(tint) sprite.tint=tint;
+    const mask=new Graphics().circle(0,0,radius).fill('white');
+    cover.addChild(sprite,mask);sprite.mask=mask;node.addChild(cover);
+  }
+  shoulderNode.rotation=c.rest.shoulder;elbowNode.rotation=c.rest.elbow;
   const handNode=new Container({label:'handNode'}); handNode.y=armLengths.lower; elbowNode.addChild(handNode);
   return {root,torso,upperArm:shoulderNode,forearm:elbowNode,shoulderNode,elbowNode,handNode};
 }

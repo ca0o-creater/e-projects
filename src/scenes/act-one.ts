@@ -2,11 +2,11 @@ import { BlurFilter, Container, FillGradient, Graphics, Rectangle, Text, type Ti
 import { actOneConfig as config } from '../config/act-one';
 import { charactersConfig as actors, actOneIntroEnd } from '../config/characters';
 import { HouyiPuppet, QueenPuppet } from '../characters/puppets';
-import { receivingHand, receivingPose } from '../characters/poses';
+import { receivingHand } from '../characters/poses';
 import { handoffConfig } from '../config/handoff';
 import { HandoffController } from '../interaction/handoff';
 import { rigConfig, armLengths } from '../config/rig.config';
-import { solveTwoBone } from '../characters/ik';
+import { solveArmIK, dampAngle } from '../characters/ik';
 
 const { width, height } = config.stage;
 
@@ -103,23 +103,27 @@ export class ActOneScene extends Container {
       this.detached = true;
       this.handoff.update(0);
     }
-    let pose = receivingPose(this.handoff.armProgress);
+    if(this.detached && this.handoff.state==='ready') {
+      // 等待抓取时药瓶继续跟随西王母悬浮，抓取后才固定本次曲线路径。
+      this.handoff.setPath(this.toLocal(this.queen.palm.toGlobal({x:0,y:-actors.bottle.radius})));
+    }
+    let pose: {shoulder:number;elbow:number} = rigConfig.houyi.rest;
     const tracking = ['dragging','snapped'].includes(this.handoff.state)
       || (this.handoff.state === 'completing' && this.handoff.completionProgress === 0);
     if (tracking) {
       const target = this.handoff.point, bounds = rigConfig.targetBounds;
       const x = Math.max(bounds.minX,Math.min(bounds.maxX,target.x));
       const y = Math.max(bounds.minY,Math.min(bounds.maxY,target.y+actors.bottle.radius));
-      const solution = solveTwoBone({ x:(x-this.houyi.x)/this.houyi.scale.x-actors.houyi.shoulder.x,
-        y:(y-this.houyi.y)/this.houyi.scale.y-actors.houyi.shoulder.y }, armLengths.upper,armLengths.lower);
+      const solution = solveArmIK(actors.houyi.shoulder,
+        {x:(x-this.houyi.x)/this.houyi.scale.x,y:(y-this.houyi.y)/this.houyi.scale.y},armLengths.upper,armLengths.lower);
       if(solution) pose=solution;
     }
     const limits=rigConfig.houyi.limits;
-    const blend=tracking ? 1 : 1-Math.exp(-dt*6/rigConfig.resetSeconds);
+    const seconds=tracking ? rigConfig.houyi.followSeconds : rigConfig.resetSeconds;
     const current=this.houyi.rig;
     this.houyi.setArmPose(
-      current.upperArm.rotation+(Math.max(limits.shoulder[0],Math.min(limits.shoulder[1],pose.shoulder))-current.upperArm.rotation)*blend,
-      current.forearm.rotation+(Math.max(limits.elbow[0],Math.min(limits.elbow[1],pose.elbow))-current.forearm.rotation)*blend);
+      dampAngle(current.shoulderNode.rotation,Math.max(limits.shoulder[0],Math.min(limits.shoulder[1],pose.shoulder)),dt,seconds),
+      dampAngle(current.elbowNode.rotation,Math.max(limits.elbow[0],Math.min(limits.elbow[1],pose.elbow)),dt,seconds));
     const completing = this.handoff.state === 'completing' || this.handoff.state === 'complete';
     if (this.detached) {
       const point = completing && this.handoff.completionProgress > 0
@@ -171,9 +175,9 @@ export class ActOneScene extends Container {
     const queenProgress = clamp((this.elapsed - actors.queen.appearAt) / actors.queen.enterDuration);
     this.queen.alpha = queenProgress;
     this.queen.y = actors.queen.startY + (actors.queen.y - actors.queen.startY) * (1 - (1 - queenProgress) ** 3);
-    if(queenProgress===1) this.queen.y+=Math.sin(this.elapsed*Math.PI*2/rigConfig.queen.floatPeriod)*rigConfig.queen.floatAmplitude;
     const arrival = actors.queen.appearAt + actors.queen.enterDuration;
     const glowTime = Math.max(0, this.elapsed - arrival);
+    this.queen.y+=Math.sin(glowTime*Math.PI*2/rigConfig.queen.floatPeriod)*rigConfig.queen.floatAmplitude;
     this.queen.halo.alpha = clamp(glowTime / actors.bottle.glowFadeDuration)
       * (actors.bottle.glowAlpha + actors.bottle.pulseAmplitude
         * Math.sin(glowTime * Math.PI * 2 / actors.bottle.pulsePeriod));

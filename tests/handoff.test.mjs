@@ -73,6 +73,8 @@ test('拖动进度同步手臂，提前松开沿原路径返回，可以再次�
 test('100px容错区吸附，吸附后移动无效；松开才完成，成功仅一次', () => {
   const { controller: c, successes } = fixture();
   ready(c); drag(c, 0.94);
+  assert.equal(c.state, 'dragging'); // 保留末段弯肘过程，不能在最大臂展外提前吸附。
+  c.input({type:'MOVE',point:curve.at(0.98)});
   assert.equal(c.state, 'snapped');
   assert.equal(c.message, '已接住，可以松手了');
   assert.equal(successes(), 0);

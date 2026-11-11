@@ -40,7 +40,7 @@ export class HandoffController {
 
   prepare(): void { if (this.state === 'intro') this.transition('offering'); }
   setPath(start: StagePoint): void {
-    if (this.curve) return;
+    if (this.curve && this.state !== 'ready') return;
     this.curve = new HandoffCurve(start, config.controlPoints[0], config.controlPoints[1], this.handAt(1));
   }
   canGrab(point: StagePoint): boolean {
@@ -61,7 +61,7 @@ export class HandoffController {
     } else if (event.type === 'MOVE' && this.state === 'dragging' && this.curve) {
       this.progress = this.curve.project(event.point);
       this.armProgress = this.progress;
-      if (distance(this.point, this.handAt(this.progress)) <= config.snapRadius) this.transition('snapped');
+      if (this.progress >= config.snapMinProgress && distance(this.point, this.handAt(1)) <= config.snapRadius) this.transition('snapped');
     } else if (event.type === 'RELEASE') {
       if (this.state === 'snapped' && !event.cancelled) this.transition('completing');
       else if (this.state === 'dragging' || this.state === 'snapped') {

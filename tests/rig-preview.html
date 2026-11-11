@@ -1,0 +1,24 @@
+<!doctype html><html lang="zh-CN"><meta charset="UTF-8"><title>接药关节检查</title>
+<style>body{margin:0;background:#352218;display:grid;place-items:center;height:100vh}canvas{width:min(100vw,177.777vh);height:auto}</style>
+<script type="module">
+// 开发用固定帧预览：通过真实语义输入模拟拖动，停在吸附后、松手前，检查弯肘接缝。
+import {Application} from 'pixi.js';
+import {ActOneScene} from '/src/scenes/act-one.ts';
+import {loadRigAssets} from '/src/characters/image-rigs.ts';
+import {actOneIntroEnd} from '/src/config/characters.ts';
+import {receivingHand} from '/src/characters/poses.ts';
+if(!import.meta.env.DEV) throw new Error('仅开发预览');
+await loadRigAssets();
+const app=new Application();await app.init({width:1920,height:1080,antialias:true,autoStart:false});
+const scene=new ActOneScene();app.stage.addChild(scene);scene.seek(actOneIntroEnd);
+const step=()=>scene.update({deltaMS:1000/60});
+for(let i=0;i<120;i++)step();
+const start=scene.handoff.point,end=receivingHand(1);
+scene.handoff.input({type:'GRAB',point:start});
+for(let i=0;i<=240;i++){
+ scene.handoff.input({type:'MOVE',point:{x:start.x+(end.x-start.x)*i/240,y:start.y+(end.y-start.y)*i/240}});step();
+}
+for(let i=0;i<120;i++)step();
+document.body.append(app.canvas);app.render();
+document.body.dataset.state=scene.handoff.state;
+</script></html>
