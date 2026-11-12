@@ -1,4 +1,4 @@
-import { BlurFilter, Container, FillGradient, Graphics, Rectangle, Text, type Ticker } from 'pixi.js';
+import { BlurFilter, Container, FillGradient, Graphics, NoiseFilter, Rectangle, Text, type Ticker } from 'pixi.js';
 import { actOneConfig as config } from '../config/act-one';
 import { charactersConfig as actors, actOneIntroEnd } from '../config/characters';
 import { HouyiPuppet, QueenPuppet } from '../characters/puppets';
@@ -7,6 +7,7 @@ import { handoffConfig } from '../config/handoff';
 import { HandoffController } from '../interaction/handoff';
 import { rigConfig, armLengths } from '../config/rig.config';
 import { solveArmIK, dampAngle } from '../characters/ik';
+import { puppetLook } from '../config/puppet-look';
 
 const { width, height } = config.stage;
 
@@ -58,6 +59,36 @@ export class ActOneScene extends Container {
   private trailClock = 0;
   private trailIndex = 0;
   private detached = false;
+  private readonly rodLayer = new Container({label:'幕后操纵杆'});
+  private readonly rods = [this.makeRodPair(),this.makeRodPair()];
+
+  private makeRodPair() {
+    const group=new Container(),shadow=new Graphics(),ink=new Graphics();
+    shadow.position.set(actors.shadow.x,actors.shadow.y);
+    shadow.alpha=actors.shadow.alpha;
+    shadow.filters=[new BlurFilter({strength:3,quality:3})];
+    ink.blendMode='multiply';group.addChild(shadow,ink);
+    return {group,shadow,ink};
+  }
+
+  private updateRods():void {
+    const c=puppetLook.rods;
+    const sources=[
+      {puppet:this.houyi, settings:c.houyi, hand:this.houyi.rig.handNode},
+      {puppet:this.queen, settings:c.queen, hand:this.queen.rig.arm},
+    ];
+    sources.forEach(({puppet,settings,hand},index)=>{
+      const pair=this.rods[index];pair.group.alpha=puppet.alpha;
+      const torso=this.toLocal(puppet.toGlobal(settings.torso));
+      const wrist=this.toLocal(hand.toGlobal({x:0,y:0}));
+      pair.ink.clear();pair.shadow.clear();
+      for(const [point,footX] of [[torso,settings.bodyFootX],[wrist,settings.handFootX]] as const) {
+        pair.shadow.moveTo(footX,c.bottomY).lineTo(point.x,point.y).stroke({color:actors.shadow.color,width:c.width+1});
+        pair.ink.moveTo(footX,c.bottomY).lineTo(point.x,point.y).stroke({color:c.color,width:c.width});
+        pair.ink.moveTo(footX-0.6,c.bottomY).lineTo(point.x-0.6,point.y).stroke({color:c.highlight,width:0.8,alpha:0.6});
+      }
+    });
+  }
 
   constructor() {
     super();
@@ -66,6 +97,8 @@ export class ActOneScene extends Container {
     this.drawPaper();
     this.drawMountains();
     this.drawClouds();
+    this.rodLayer.addChild(...this.rods.map(pair=>pair.group));
+    this.addChild(this.rodLayer);
     const cast = new Container({ label: '人物表演层', sortableChildren: true });
     cast.addChild(this.houyi, this.queen);
     this.addChild(cast);
@@ -81,6 +114,8 @@ export class ActOneScene extends Container {
     }
     this.interactionLayer.addChild(this.success);
     this.seek(0);
+    this.filterArea=new Rectangle(0,0,width,height);
+    this.filters=[new NoiseFilter({...config.grain})];
   }
 
   readonly update = (ticker: Ticker): void => {
@@ -158,6 +193,7 @@ export class ActOneScene extends Container {
         this.success.circle(Math.cos(a) * r, Math.sin(a) * r, 3 + (1 - p) * 4).fill({ color: c.success.color, alpha: 1 - p });
       }
     }
+    this.updateRods();
   }
 
   // 呼吸、云和题字共用播放时间；退出全屏时 ticker 停止，重新进入从原处继续。
@@ -193,6 +229,7 @@ export class ActOneScene extends Container {
       : this.elapsed < actOneIntroEnd ? 'characters-enter' : 'awaiting-elixir';
     if (this.phase === 'awaiting-elixir') this.handoff.prepare();
     if (this.handoff.state === 'intro') this.queen.setOfferingPose(handoffConfig.offering.startAngle);
+    this.updateRods();
   }
 
   private drawPaper(): void {
@@ -237,6 +274,9 @@ export class ActOneScene extends Container {
       const bank = new Container();
       bank.label = side === -1 ? '左侧山峦' : '右侧山峦';
       bank.x = side === 1 ? width : 0;
+      bank.pivot.y = height;
+      bank.y = height;
+      bank.scale.y = config.mountains.heightScale;
       bank.scale.x = side === 1 ? -1 : 1;
       ridges.forEach((ridge, index) => {
         const scaled = ridge.map((value, i) => i % 2 === 0 ? value * config.mountains.edgeWidth / 460

@@ -1,6 +1,8 @@
 import { BlurFilter, Container, Graphics } from 'pixi.js';
 import { charactersConfig as config } from '../config/characters.ts';
 import { createImageHouyi, createImageQueen } from './image-rigs.ts';
+import { applyLeatherLook, rivet } from './puppet-look.ts';
+import { rigConfig } from '../config/rig.config.ts';
 
 // 每个 part 容器只放局部美术。换 Sprite 时沿用容器及局部原点，无需修改关节树。
 function part(name: string, x: number, y: number, z: number, art: Graphics): Container {
@@ -89,6 +91,9 @@ export class HouyiPuppet extends Container {
     this.scale.set(config.houyi.scale);
     this.zIndex = config.layers.houyi;
     this.addChild(shadowWrapper(this.shadowRig.root), this.rig.root);
+    this.rig.shoulderNode.addChild(rivet());
+    this.rig.elbowNode.addChild(rivet());
+    applyLeatherLook(this.rig.root);
   }
 
   // 后续可直接操控这两个关节，阴影同步姿态，不会留下静止手臂。
@@ -111,6 +116,11 @@ export class QueenPuppet extends Container {
     this.scale.set(config.queen.scale);
     this.zIndex = config.layers.queen;
     this.addChild(shadowWrapper(this.shadowRig.root), this.rig.root);
+    const wrist=rivet();
+    wrist.position.set((rigConfig.queen.wrist.x-rigConfig.queen.origin.x)*rigConfig.queen.scale,
+      (rigConfig.queen.wrist.y-rigConfig.queen.origin.y)*rigConfig.queen.scale);
+    this.rig.root.addChild(wrist);
+    applyLeatherLook(this.rig.root);
     this.palm.position.set(0, 0);
     this.palm.zIndex = config.layers.bottle;
     const c = config.bottle;
@@ -127,7 +137,9 @@ export class QueenPuppet extends Container {
       .circle(-5, -5, 5).fill('#ffffff');
     bottle.addChild(cast, this.halo, core);
     this.palm.addChild(bottle);
-    this.rig.arm.addChild(this.palm);
+    // 发光药瓶独立于 multiply 与人物边缘滤镜，保留亮度。
+    this.palm.position.copyFrom(this.rig.arm.position);
+    this.addChild(this.palm);
   }
 
   setOfferingPose(_angle: number): void {
