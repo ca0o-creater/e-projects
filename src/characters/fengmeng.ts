@@ -1,9 +1,11 @@
 import {Assets,Container,Graphics,Sprite,Texture} from 'pixi.js';
 import {actTwoConfig as config} from '../config/act-two.ts';
 import {applyLeatherLook} from './puppet-look.ts';
+import {rigConfig} from '../config/rig.config.ts';
+import {changeRigConfig} from '../config/change-rig.ts';
 
 export async function loadActTwoAssets():Promise<void> {
-  await Assets.load<Texture>(config.pengMeng.url);
+  await Promise.all([Assets.load<Texture>(config.pengMeng.url),Assets.load<Texture>(rigConfig.houyi.url),Assets.load<Texture>(changeRigConfig.url)]);
 }
 export function createFengMeng():Container {
   const c=config.pengMeng,texture=Assets.get<Texture>(c.url);

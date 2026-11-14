@@ -2,7 +2,10 @@ import { BlurFilter, Container, FillGradient, Graphics, Text, type Ticker } from
 import { actTwoConfig as c } from '../config/act-two.ts';
 import { SwallowController } from '../interaction/swallow.ts';
 import { createFengMeng } from '../characters/fengmeng.ts';
-import { actTwoEntranceAt } from './act-two-entrance.ts';
+import { actTwoEntranceAt, houyiDepartureAt } from './act-two-entrance.ts';
+import { createImageHouyi } from '../characters/image-rigs.ts';
+import { createChangeRig } from '../characters/change.ts';
+import { applyLeatherLook } from '../characters/puppet-look.ts';
 
 const clamp=(v:number)=>Math.max(0,Math.min(1,v));
 const ease=(v:number)=>{const t=clamp(v);return t*t*(3-2*t);};
@@ -10,23 +13,13 @@ function caption(text:string,size:number,color:string):Text {
   const label=new Text({text,style:{fontFamily:'STKaiti, KaiTi, serif',fontSize:size,fill:color,letterSpacing:5}});
   label.anchor.set(0.5);return label;
 }
-function traveler(color:string):Container {
-  const figure=new Container();
-  figure.addChild(new Graphics().circle(0,-310,35).fill(color)
-    .poly([-35,-275,32,-275,70,-90,35,-45,-45,-45,-68,-95]).fill(color)
-    .poly([-38,-60,-5,-60,-27,0,-75,0]).fill(color)
-    .poly([5,-60,36,-60,75,0,35,0]).fill(color)
-    .moveTo(25,-248).lineTo(85,-180).lineTo(125,-214).stroke({color,width:22,cap:'round'}));
-  return figure;
-}
 
 export class ActTwoScene extends Container {
   readonly sceneId='change-takes-elixir';
   readonly swallow=new SwallowController(()=>this.emit('moon-unlocked'));
   private elapsed=0;
-  private readonly figure=new Container({label:'嫦娥占位影偶'});
-  private readonly head=new Container({label:'仰头节点'});
-  private readonly arm=new Graphics();
+  private readonly figure=new Container({label:'嫦娥图片与交互'});
+  private readonly changeRig=createChangeRig();
   private readonly rods=new Graphics();
   private readonly bottle=new Container({label:'掌心药瓶'});
   private readonly halo=new Graphics().circle(0,0,27).fill({color:c.colors.glow,alpha:0.4});
@@ -36,9 +29,10 @@ export class ActTwoScene extends Container {
   private readonly pengMeng=createFengMeng();
   private readonly warning=caption('逢蒙逼药，嫦娥护药',38,c.colors.caption);
   private readonly tension=new Graphics();
-  private readonly departing=traveler('#c1a574');
+  private readonly departing=new Container({label:'后羿离家 · 图片影偶'});
+  private departureRightExtent=0;
   private readonly title=caption('凡间 · 嫦娥吞药',54,c.colors.caption);
-  private readonly introText=caption('后羿离家，逢蒙逼近',29,c.colors.caption);
+  private readonly introText=caption('后羿离家，逢蒙逼药',29,c.colors.caption);
   private readonly moon=new Graphics();
   private readonly flash=new Graphics();
 
@@ -51,8 +45,13 @@ export class ActTwoScene extends Container {
     super({label:'第二幕 · 凡间庭院'});
     this.eventMode='none';
     this.drawCourtyard();
-    this.departing.addChild(new Graphics().moveTo(-50,-345).quadraticCurveTo(-150,-185,-50,-45)
-      .stroke({color:'#c1a574',width:7}).moveTo(-50,-345).lineTo(-50,-45).stroke({color:'#c1a574',width:2}));
+    const houyi=createImageHouyi();
+    houyi.root.scale.set(-c.departingHouyi.scale,c.departingHouyi.scale);
+    applyLeatherLook(houyi.root);
+    this.departing.addChild(houyi.root);
+    // 按镜像后实际美术边界计算终点，包含弓与衣摆，确保完整走出左边缘。
+    const bounds=this.departing.getLocalBounds();
+    this.departureRightExtent=bounds.maxX+12;
     this.addChild(this.departing,this.pengMeng,this.guide,this.target,this.rods,this.figure,this.flash);
     this.drawChangE();
     this.title.position.set(960,180);this.introText.position.set(960,245);
@@ -85,18 +84,8 @@ export class ActTwoScene extends Container {
   private drawChangE():void {
     const shadow=new Graphics().ellipse(c.changE.x,870,150,21).fill({color:'#211c1b',alpha:0.45});
     shadow.filters=[new BlurFilter({strength:10})];this.figure.addChild(shadow);
-    this.figure.addChild(new Graphics()
-      .poly([694,540,753,536,785,637,828,851,614,851,668,630]).fill(c.colors.changE)
-      .poly([704,566,728,570,751,839,694,839]).fill({color:c.colors.trim,alpha:0.45})
-      .moveTo(682,571).quadraticCurveTo(615,638,656,710).lineTo(716,688).stroke({color:'#4d3530',width:25,cap:'round'})
-      .moveTo(632,829).quadraticCurveTo(718,864,817,830).stroke({color:c.colors.trim,width:5}));
-    this.head.position.set(735,538);
-    this.head.addChild(new Graphics().ellipse(1,-48,31,43).fill('#d2aa72')
-      .poly([25,-59,45,-43,26,-35]).fill('#d2aa72')
-      .ellipse(-10,-67,30,37).fill(c.colors.ink).circle(-18,-105,21).fill(c.colors.ink)
-      .moveTo(-36,-105).lineTo(13,-116).stroke({color:c.colors.trim,width:4})
-      .circle(20,-56,3).fill(c.colors.ink));
-    this.figure.addChild(this.head,this.arm,this.bottle,this.control);
+    applyLeatherLook(this.changeRig.root);
+    this.figure.addChild(this.changeRig.root,this.bottle,this.control);
     this.halo.filters=[new BlurFilter({strength:9})];
     this.bottle.addChild(this.halo,new Graphics().roundRect(-9,-15,18,26,6).fill(c.colors.glow)
       .rect(-5,-22,10,8).fill('#d6ad63').circle(-3,-8,3).fill('#fff5d4'));
@@ -116,10 +105,10 @@ export class ActTwoScene extends Container {
   }
   private renderPose():void {
     const t=this.elapsed, s=this.swallow;
-    const departure=clamp((t-c.intro.departureStart)/c.intro.departureDuration);
-    this.departing.position.set(740-900*ease(departure),865);
-    this.departing.alpha=Math.sin(departure*Math.PI)*0.5;
-    this.departing.visible=departure>0 && departure<1;
+    const departure=houyiDepartureAt(t,this.departureRightExtent);
+    this.departing.position.set(departure.x,c.departingHouyi.y);
+    this.departing.alpha=clamp((t-c.intro.departureStart)/0.35);
+    this.departing.visible=departure.visible;
     const entrance=actTwoEntranceAt(t);
     this.pengMeng.position.set(entrance.x,c.pengMeng.y);
     this.pengMeng.visible=t>=c.intro.approachStart;
@@ -127,19 +116,21 @@ export class ActTwoScene extends Container {
     this.warning.alpha=entrance.warningAlpha;
     this.tension.alpha=c.tension.alpha*entrance.progress;
     this.title.alpha=clamp(t/0.7)*(1-clamp((t-2.8)/1.2));
-    this.introText.alpha=s.state==='intro'?clamp(t/0.8)*(1-clamp((t-6.5)/1.5)):0;
+    const approachEnd=c.intro.approachStart+c.intro.approachDuration;
+    this.introText.alpha=s.state==='intro'?clamp(t/0.8)*(1-clamp((t-approachEnd+1)/1)):0;
     this.figure.alpha=clamp((t-2.6)/1.2);
     const ending=s.endingElapsed;
     const rise=ease((ending-c.ending.swallowSeconds)/c.ending.riseSeconds);
     this.figure.y=-rise*c.ending.riseHeight;
-    this.head.rotation=-0.28*Math.sin(clamp(ending/c.ending.swallowSeconds)*Math.PI);
+    this.changeRig.head.rotation=-0.28*Math.sin(clamp(ending/c.ending.swallowSeconds)*Math.PI);
     this.pengMeng.alpha*=1-rise*0.65;
     this.moon.alpha=0.16+rise*0.65;
-    const p=s.point,a=c.arm;
-    this.arm.clear().moveTo(c.changE.shoulder.x,c.changE.shoulder.y).lineTo(a.center.x,a.center.y)
-      .lineTo(p.x,p.y).stroke({color:'#6b4033',width:24,cap:'round',join:'round'})
-      .circle(a.center.x,a.center.y,7).fill(c.colors.trim).circle(p.x,p.y,12).fill('#d2aa72');
-    this.bottle.position.set(p.x,p.y-10);
+    const a=c.arm;
+    this.changeRig.pose(s.progress);
+    // 从真实掌心挂点读取坐标，控制圈、瓶子、手杆始终与原图手掌一致。
+    const palm=this.figure.toLocal(this.changeRig.palmNode.toGlobal({x:0,y:0}));
+    this.bottle.position.set(palm.x,palm.y-10);
+    const p=palm;
     this.bottle.alpha=1-ease(ending/c.ending.swallowSeconds);
     this.halo.alpha=0.65+Math.sin(t*3)*0.12;
     const interactive=['ready','dragging','armed','returning'].includes(s.state);

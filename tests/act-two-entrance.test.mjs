@@ -1,7 +1,19 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {actTwoEntranceAt} from '../src/scenes/act-two-entrance.ts';
+import {actTwoEntranceAt,houyiDepartureAt} from '../src/scenes/act-two-entrance.ts';
 import {actTwoConfig as c} from '../src/config/act-two.ts';
+test('后羿从中央向左完整离场后才允许逢蒙登场',()=>{
+  const end=c.intro.departureStart+c.intro.departureDuration;
+  assert.ok(c.intro.approachStart>end);
+  assert.equal(houyiDepartureAt(c.intro.departureStart,260).x,c.departingHouyi.startX);
+  for(const extent of [150,260,400]) {
+    const exit=houyiDepartureAt(end,extent);
+    assert.ok(exit.x+extent<0);assert.equal(exit.visible,false);
+    assert.equal(actTwoEntranceAt(end).progress,0);
+    const middle=houyiDepartureAt(c.intro.departureStart+c.intro.departureDuration/2,extent);
+    assert.ok(middle.x<c.departingHouyi.startX && middle.x>exit.x);
+  }
+});
 test('逢蒙从屏外逼近；抖动后仍与整个手腕操作区保持200px间隔',()=>{
   assert.ok(actTwoEntranceAt(c.intro.approachStart).x>=1920);
   for(let t=0;t<40;t+=.01) {

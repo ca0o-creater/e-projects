@@ -12,10 +12,11 @@ await loadActTwoAssets();
 const app=new Application();await app.init({width:1920,height:1080,antialias:true,autoStart:false});
 const scene=new ActTwoScene();app.stage.addChild(scene);scene.seek(config.intro.duration);
 const step=()=>scene.update({deltaMS:1000/60});
+const pose=new URLSearchParams(location.search).get('pose');
 scene.swallow.input({type:'GRAB',point:scene.swallow.point});
-for(let i=1;i<=60;i++) {scene.swallow.input({type:'MOVE',point:scene.swallow.pointAt(i/60)});step();}
+for(let i=1;i<=(pose==='half'?30:60);i++) {scene.swallow.input({type:'MOVE',point:scene.swallow.pointAt(i/60)});step();}
 for(let i=0;i<25;i++) step();
-if(scene.swallow.state!=='armed') throw new Error('停留条件未通过');
+if(pose!=='half' && scene.swallow.state!=='armed') throw new Error('停留条件未通过');
 if(new URLSearchParams(location.search).get('pose')==='complete') {
   scene.swallow.input({type:'RELEASE'});
   for(let i=0;i<300;i++) step();

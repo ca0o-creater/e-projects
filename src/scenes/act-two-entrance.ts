@@ -1,5 +1,14 @@
 import {actTwoConfig as c} from '../config/act-two.ts';
 const clamp=(v:number)=>Math.max(0,Math.min(1,v));
+export function houyiDepartureAt(time:number,rightExtent:number) {
+  const i=c.intro,p=c.departingHouyi;
+  const finished=time>=i.departureStart+i.departureDuration;
+  const progress=finished?1:clamp((time-i.departureStart)/i.departureDuration);
+  const tween=progress*progress*(3-2*progress);
+  const endX=-rightExtent-p.offstageMargin;
+  return {x:p.startX+(endX-p.startX)*tween,progress,
+    visible:time>=i.departureStart && !finished};
+}
 export function actTwoEntranceAt(time:number) {
   const t=Math.max(0,time),i=c.intro,p=c.pengMeng;
   const progress=clamp((t-i.approachStart)/i.approachDuration);

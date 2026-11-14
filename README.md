@@ -133,3 +133,19 @@ PowerShell 中使用 `npm.cmd`，避免系统执行策略拦截 `npm.ps1`；无�
 参数入口：`pengMeng.height / safeGap / jitterAmplitude / jitterHz`、`intro.approachDuration / warningHold / warningFade`、`tension`。不必修改输入适配器或吞药状态机。
 
 完整登场测试：`http://127.0.0.1:5173/?preview=act-two`（不要添加skipIntro）；9秒题字期间药瓶不可拖，约10.8秒后出现光圈和操作提示；半途松手复位、面部停稳400ms后松手吞药规则保持不变。
+
+### 后羿真实图片离家
+
+第二幕离家角色已复用 `houyi.png` 的现有遮罩骨架，镜像朝左，从舞台中央 x=960 出发，按实际人物（含弓、衣摆）边界计算屏外终点。0.6秒开始淡入并向左补间，4.4秒完全离场，4.75秒逢蒙才从右侧登场；入场提示为“后羿离家，逢蒙逼药”。`intro.approachStart` 从离家时长自动推导，避免两段表演重叠。全部角色在背景之上，题字与DOM提示在角色之上。
+
+本次检查时 `public/assets/change.png` 尚不存在，因此嫦娥仍保留原几何占位与既有控制点；真实手腕、前臂分段和路径校准等待原图提供，不应视为已经完成。可先用 `?preview=act-two` 测试真实后羿离场和逢蒙接续登场。
+
+### 嫦娥真实图片接入与手腕校准（已完成）
+
+已从本项目另一对话的 `output/shadow-puppets/嫦娥-背面藏杆.png` 接入原图，保存为 `public/assets/change.png`。这张图带纸底，采用运行时轮廓遮罩、飘带独立遮罩和正片叠底处理；目前为近似裁切，非精修透明分层美术。
+
+`src/config/change-rig.ts` 集中定义1024×1536原图的肘部、掌心、颈部、纹理遮罩、缩放与初始旋转。上方托药手臂为独立肘铰链，另一只手保持原图姿态。光圈、瓶子与影杆从实际 palmNode 读取坐标；拖动弧线由同一组肘/掌坐标推导，调整尺寸无需另行手填路径。人物显示高度约440像素，逢蒙410像素。待机、抬臂、升空三个状态的挂点与路径自动测试一致。
+
+测试完整入场用 `?preview=act-two`；测试拖动用 `?preview=act-two&skipIntro=1`。慢慢把光圈从腹部抬至面部，观察其始终包围托药手掌，半途松手平滑返回；面部停稳400ms提示后松手吞药。开发静帧 `tests/act-two-preview.html?pose=half` 检查半抬，`tests/act-two-preview.html` 检查到脸的姿态。
+
+前文“嫦娥原图缺失”的说明已由本节替代。后羿离场与逢蒙登场的顺序保持不变。

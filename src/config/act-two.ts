@@ -1,12 +1,16 @@
+import {changeArm} from './change-rig.ts';
 // 第二幕使用 1920×1080 舞台坐标。时间单位为秒，角度为弧度。
 export const actTwoConfig = {
   stage: { width: 1920, height: 1080 },
   colors: { background: '#2d2728', courtyard: '#463832', light: '#9a805d', ink: '#201b20',
     changE: '#754839', trim: '#c8a36a', glow: '#ffe3a0', caption: '#f5dfb6' },
   intro: { get duration() { return this.approachStart+this.approachDuration+this.warningHold+this.warningFade; },
-    departureStart: 1, departureDuration: 2.4, approachStart: 3.6, approachDuration: 4.4,
+    departureStart: 0.6, departureDuration: 3.8, departureGap: 0.35,
+    get approachStart() { return this.departureStart+this.departureDuration+this.departureGap; },
+    approachDuration: 4.4,
     warningHold: 2.2, warningFade: 0.6 },
   changE: { x: 720, y: 860, shoulder: { x: 735, y: 555 }, face: { x: 772, y: 485 } },
+  departingHouyi: { startX:960, y:865, scale:1, offstageMargin:40 },
   pengMeng: { url:'/assets/fengmeng.png', startX:1932, y:865, height:410,
     safeGap:200, jitterAmplitude:1.5, jitterHz:2.5,
     // 当前附件有纸底：以 288×384 原图坐标裁轮廓；换成透明PNG时改成false。
@@ -25,7 +29,7 @@ export const actTwoConfig = {
       [151,91,157,89,179,124,171,120]],
   },
   tension: { x:1030,y:610,radiusX:230,radiusY:320,color:'#a02c26',alpha:0.12 },
-  arm: { center: { x: 780, y: 600 }, radius: 105, startAngle: 1.1, endAngle: -1.65,
+  arm: { center: changeArm.center, radius: changeArm.radius, startAngle: changeArm.startAngle, endAngle: changeArm.endAngle,
     grabRadius: 48, controlRadius: 29, targetProgress: 0.9, holdSeconds: 0.4,
     stillRadius: 8, centerDeadZone: 18, returnSeconds: 0.85 },
   ending: { swallowSeconds: 1.3, riseSeconds: 3, riseHeight: 220 },
