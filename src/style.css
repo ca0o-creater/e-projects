@@ -74,6 +74,14 @@ body {
 .stage-button:active { background: #e4c48f; }
 .stage-button:focus-visible { outline: 3px solid #805e35; outline-offset: 4px; }
 #assist-button { bottom: 4%; right: 4%; }
+#ascent-assist {bottom:4%;right:4%;touch-action:none;}
+#replay-button {bottom:4%;left:36%;}
+#review-button {bottom:4%;right:36%;}
+#stage[data-scene='act-three'] #handoff-status {color:#e4edf7;text-shadow:0 2px 8px #141b2a;}
+#stage[data-interaction-state='complete'][data-scene='act-three'] #handoff-status {display:none;}
+#review-panel {pointer-events:auto;position:absolute;inset:15% 20%;background:#16253bf5;color:#f4e5c5;padding:4%;border:1px solid #b4c6dc;overflow:auto;}
+#review-panel p {line-height:1.7;font-size:clamp(14px,1.5vw,24px);}
+#review-close {position:static;margin-top:16px;}
 #next-button { bottom: 3%; left: 50%; transform: translateX(-50%); }
 
 #entrance {

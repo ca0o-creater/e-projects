@@ -16,6 +16,13 @@
         <p id="handoff-status" role="status" aria-live="polite"></p>
         <button id="assist-button" class="stage-button" type="button" hidden>辅助完成</button>
         <button id="next-button" class="stage-button" type="button" hidden>前往凡间</button>
+        <button id="ascent-assist" class="stage-button" type="button" hidden>按住 · 辅助升空</button>
+        <button id="replay-button" class="stage-button" type="button" hidden>重演</button>
+        <button id="review-button" class="stage-button" type="button" hidden>知识回顾</button>
+        <section id="review-panel" role="dialog" aria-label="知识回顾" hidden>
+          <h2>知识回顾</h2><div id="review-content"></div>
+          <button id="review-close" class="stage-button" type="button">返回月宫</button>
+        </section>
       </div>
     </main>
     <script type="module" src="/src/main.ts"></script>
