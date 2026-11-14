@@ -37,8 +37,9 @@ test('输入适配器换算16:9舞台坐标、只抓药瓶、屏外松手仅发�
   assert.deepEqual(events[1], { type: 'MOVE', point: { x: 1560, y: 280 } });
   canvas.dispatchEvent(pointer('pointerup'));
   canvas.dispatchEvent(pointer('pointerup'));
-  assert.deepEqual(events[2], { type: 'RELEASE', cancelled: false });
-  assert.equal(events.length, 3);
+  assert.deepEqual(events[2], { type: 'MOVE', point: { x: 960, y: 540 } });
+  assert.deepEqual(events[3], { type: 'RELEASE', cancelled: false });
+  assert.equal(events.length, 4);
   assert.equal(canvas.hasPointerCapture(1), false);
   adapter.dispose();
   delete globalThis.window;

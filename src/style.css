@@ -57,6 +57,11 @@ body {
   font-size: clamp(16px, 2.1vw, 34px); letter-spacing: 0.12em;
   text-shadow: 0 1px 6px #fff0c4;
 }
+#stage[data-scene='act-two'] #handoff-status {
+  color: #f5dfb6;
+  text-shadow: 0 2px 8px #211a16;
+  bottom: 5%;
+}
 .stage-button {
   pointer-events: auto; position: absolute; padding: 10px 24px;
   border: 1px solid #805e35; border-radius: 4px;
@@ -70,14 +75,6 @@ body {
 .stage-button:focus-visible { outline: 3px solid #805e35; outline-offset: 4px; }
 #assist-button { bottom: 4%; right: 4%; }
 #next-button { bottom: 3%; left: 50%; transform: translateX(-50%); }
-#mortal-arrival {
-  position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column;
-  align-items: center; justify-content: center; color: #59422c;
-  background: radial-gradient(ellipse, #fff0c4, #e6c995 60%, #886945);
-  font-family: 'STKaiti', 'KaiTi', serif;
-}
-#mortal-arrival p { font-size: clamp(48px, 8vw, 120px); letter-spacing: 0.3em; margin: 0 0 30px; }
-#mortal-arrival span { font-size: clamp(18px, 2vw, 32px); letter-spacing: 0.2em; }
 
 #entrance {
   position: fixed;

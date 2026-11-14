@@ -1,0 +1,25 @@
+<!doctype html><html lang="zh-CN"><meta charset="UTF-8"><title>第二幕动作检查</title>
+<style>body{margin:0;background:#352218;color:#f5dfb6;display:grid;place-items:center;height:100vh;font-family:serif}canvas{width:min(100vw,177.777vh);height:auto}p{position:fixed;bottom:5%;pointer-events:none;font-size:22px}</style>
+<p id="status"></p>
+<script type="module">
+// 通过真实场景与语义输入冻结关键帧；仅开发使用，不绕过正式交互判定。
+import {Application} from 'pixi.js';
+import {ActTwoScene} from '/src/scenes/act-two.ts';
+import {actTwoConfig as config} from '/src/config/act-two.ts';
+if(!import.meta.env.DEV) throw new Error('仅开发预览');
+const app=new Application();await app.init({width:1920,height:1080,antialias:true,autoStart:false});
+const scene=new ActTwoScene();app.stage.addChild(scene);scene.seek(config.intro.duration);
+const step=()=>scene.update({deltaMS:1000/60});
+scene.swallow.input({type:'GRAB',point:scene.swallow.point});
+for(let i=1;i<=60;i++) {scene.swallow.input({type:'MOVE',point:scene.swallow.pointAt(i/60)});step();}
+for(let i=0;i<25;i++) step();
+if(scene.swallow.state!=='armed') throw new Error('停留条件未通过');
+if(new URLSearchParams(location.search).get('pose')==='complete') {
+  scene.swallow.input({type:'RELEASE'});
+  for(let i=0;i<300;i++) step();
+  if(scene.swallow.state!=='complete') throw new Error('吞药未完成');
+}
+document.body.append(app.canvas);app.render();
+document.querySelector('#status').textContent=scene.swallow.message;
+document.body.dataset.state=scene.swallow.state;
+</script></html>

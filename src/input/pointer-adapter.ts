@@ -48,6 +48,9 @@ export class PointerInputAdapter {
   };
 
   private readonly up = (event: PointerEvent): void => {
+    if (event.pointerId !== this.pointerId) return;
+    // pointerup 可能带来最后一段未收到 MOVE 的位移；先校验最终位置再判定松手。
+    this.move(event);
     if (event.pointerId === this.pointerId) this.release(false);
   };
 
