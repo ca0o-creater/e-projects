@@ -121,3 +121,15 @@ PowerShell 中使用 `npm.cmd`，避免系统执行策略拦截 `npm.ps1`；无�
 4. 出现提示后先移开再松手，应失败；重新进入面部需重新停留。拖动中按 Esc 或切换窗口，应取消而不解锁。
 
 `npm.cmd run build` 执行 TypeScript 与生产构建；`node --experimental-strip-types --test tests/*.test.mjs` 包含两幕交互、400ms 边界、最终松手位置、资源清理与防重复事件检查。
+
+### 逢蒙图片与逼近表演
+
+逢蒙使用 `public/assets/fengmeng.png`，由本轮提供的附件保存。该附件实际带纸色背景，运行时用多边形遮罩去除大部分纸底、题字与水印，再正片叠底融合；这是近似裁切，尚非精修透明素材。换成真正透明 PNG 后，在 `src/config/act-two.ts` 将 `pengMeng.usePaperMask` 改为 `false`。
+
+逢蒙高410逻辑像素，略低于嫦娥，从右侧屏外以4.4秒缓入缓出的补间逼近。终点与整个手腕光圈活动区域保留至少200像素，包含1.5像素抖动余量；X轴每秒抖动2.5次。背景变暗，两人间增加淡红光。所有动画仍由场景ticker驱动，退出全屏暂停、切幕销毁时一并停止。
+
+开场3.6秒开始逼近，8秒到位，随后展示“逢蒙逼药，嫦娥护药”，10.8秒题字淡出后解锁抬臂。入场总时长从逼近时长和题字时长自动推导。此前说明中的8秒开场与逢蒙几何占位已被本节替代。
+
+参数入口：`pengMeng.height / safeGap / jitterAmplitude / jitterHz`、`intro.approachDuration / warningHold / warningFade`、`tension`。不必修改输入适配器或吞药状态机。
+
+完整登场测试：`http://127.0.0.1:5173/?preview=act-two`（不要添加skipIntro）；9秒题字期间药瓶不可拖，约10.8秒后出现光圈和操作提示；半途松手复位、面部停稳400ms后松手吞药规则保持不变。

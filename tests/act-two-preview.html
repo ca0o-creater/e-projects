@@ -6,7 +6,9 @@
 import {Application} from 'pixi.js';
 import {ActTwoScene} from '/src/scenes/act-two.ts';
 import {actTwoConfig as config} from '/src/config/act-two.ts';
+import {loadActTwoAssets} from '/src/characters/fengmeng.ts';
 if(!import.meta.env.DEV) throw new Error('仅开发预览');
+await loadActTwoAssets();
 const app=new Application();await app.init({width:1920,height:1080,antialias:true,autoStart:false});
 const scene=new ActTwoScene();app.stage.addChild(scene);scene.seek(config.intro.duration);
 const step=()=>scene.update({deltaMS:1000/60});

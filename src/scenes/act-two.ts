@@ -1,6 +1,8 @@
 import { BlurFilter, Container, FillGradient, Graphics, Text, type Ticker } from 'pixi.js';
 import { actTwoConfig as c } from '../config/act-two.ts';
 import { SwallowController } from '../interaction/swallow.ts';
+import { createFengMeng } from '../characters/fengmeng.ts';
+import { actTwoEntranceAt } from './act-two-entrance.ts';
 
 const clamp=(v:number)=>Math.max(0,Math.min(1,v));
 const ease=(v:number)=>{const t=clamp(v);return t*t*(3-2*t);};
@@ -31,7 +33,9 @@ export class ActTwoScene extends Container {
   private readonly control=new Graphics();
   private readonly guide=new Graphics();
   private readonly target=new Graphics();
-  private readonly pengMeng=traveler(c.colors.ink);
+  private readonly pengMeng=createFengMeng();
+  private readonly warning=caption('逢蒙逼药，嫦娥护药',38,c.colors.caption);
+  private readonly tension=new Graphics();
   private readonly departing=traveler('#c1a574');
   private readonly title=caption('凡间 · 嫦娥吞药',54,c.colors.caption);
   private readonly introText=caption('后羿离家，逢蒙逼近',29,c.colors.caption);
@@ -47,13 +51,13 @@ export class ActTwoScene extends Container {
     super({label:'第二幕 · 凡间庭院'});
     this.eventMode='none';
     this.drawCourtyard();
-    this.pengMeng.scale.x=-1;
     this.departing.addChild(new Graphics().moveTo(-50,-345).quadraticCurveTo(-150,-185,-50,-45)
       .stroke({color:'#c1a574',width:7}).moveTo(-50,-345).lineTo(-50,-45).stroke({color:'#c1a574',width:2}));
     this.addChild(this.departing,this.pengMeng,this.guide,this.target,this.rods,this.figure,this.flash);
     this.drawChangE();
     this.title.position.set(960,180);this.introText.position.set(960,245);
-    this.addChild(this.title,this.introText);
+    this.warning.position.set(960,250);
+    this.addChild(this.title,this.introText,this.warning);
     this.seek(0);
   }
   private drawCourtyard():void {
@@ -70,6 +74,11 @@ export class ActTwoScene extends Container {
     for(let y=875;y<1030;y+=50) architecture.moveTo(70,y).lineTo(1850,y).stroke({color:'#76604a',width:2,alpha:0.35});
     for(let x=235;x<355;x+=35) architecture.moveTo(x,402).lineTo(x,608).stroke({color:'#74604b',width:3});
     this.addChild(architecture);
+    const red=c.tension;
+    this.tension.ellipse(red.x,red.y,red.radiusX,red.radiusY).fill(red.color);
+    this.tension.filters=[new BlurFilter({strength:65,quality:4,resolution:0.5})];
+    this.tension.cacheAsTexture({resolution:0.5});
+    this.addChild(this.tension);
     this.moon.circle(1570,155,49).fill('#fce9ba');this.moon.alpha=0.16;this.addChild(this.moon);
     this.addChild(new Graphics().rect(32,32,1856,1016).stroke({color:'#bc9860',width:2,alpha:0.5}));
   }
@@ -96,13 +105,13 @@ export class ActTwoScene extends Container {
   readonly update=(ticker:Ticker):void=>{
     const dt=Math.min(ticker.deltaMS/1000,0.05);
     this.elapsed+=dt;
-    if(this.elapsed>=c.intro.duration) this.swallow.prepare();
+    if(actTwoEntranceAt(this.elapsed).unlocked) this.swallow.prepare();
     this.swallow.update(dt);
     this.renderPose();
   };
   seek(seconds:number):void {
     this.elapsed=Math.max(0,seconds);
-    if(this.elapsed>=c.intro.duration) this.swallow.prepare();
+    if(actTwoEntranceAt(this.elapsed).unlocked) this.swallow.prepare();
     this.renderPose();
   }
   private renderPose():void {
@@ -111,9 +120,12 @@ export class ActTwoScene extends Container {
     this.departing.position.set(740-900*ease(departure),865);
     this.departing.alpha=Math.sin(departure*Math.PI)*0.5;
     this.departing.visible=departure>0 && departure<1;
-    const approach=ease((t-c.intro.approachStart)/c.intro.approachDuration);
-    this.pengMeng.position.set(c.pengMeng.startX+(c.pengMeng.endX-c.pengMeng.startX)*approach,c.pengMeng.y);
-    this.pengMeng.alpha=clamp((t-3)/1.2);
+    const entrance=actTwoEntranceAt(t);
+    this.pengMeng.position.set(entrance.x,c.pengMeng.y);
+    this.pengMeng.visible=t>=c.intro.approachStart;
+    this.pengMeng.alpha=1;
+    this.warning.alpha=entrance.warningAlpha;
+    this.tension.alpha=c.tension.alpha*entrance.progress;
     this.title.alpha=clamp(t/0.7)*(1-clamp((t-2.8)/1.2));
     this.introText.alpha=s.state==='intro'?clamp(t/0.8)*(1-clamp((t-6.5)/1.5)):0;
     this.figure.alpha=clamp((t-2.6)/1.2);

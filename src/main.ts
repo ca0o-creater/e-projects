@@ -7,6 +7,7 @@ import { loadRigAssets } from './characters/image-rigs';
 import { PointerInputAdapter } from './input/pointer-adapter';
 import { ActTwoScene } from './scenes/act-two';
 import { actTwoConfig } from './config/act-two';
+import { loadActTwoAssets } from './characters/fengmeng';
 import { destroyScene, SceneLifetime } from './scenes/scene-lifetime';
 
 const stage = document.querySelector<HTMLElement>('#stage')!;
@@ -151,6 +152,7 @@ async function main(): Promise<void> {
   });
 
   const directActTwo=scenePreview && previewScene==='act-two';
+  await loadActTwoAssets();
   if(!directActTwo) await loadRigAssets();
   const scene = directActTwo?new ActTwoScene():new ActOneScene();
   if (previewTime !== null) scene.seek(previewTime);
