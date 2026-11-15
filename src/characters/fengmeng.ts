@@ -5,7 +5,7 @@ import {rigConfig} from '../config/rig.config.ts';
 import {changeRigConfig} from '../config/change-rig.ts';
 
 export async function loadActTwoAssets():Promise<void> {
-  await Promise.all([Assets.load<Texture>(config.pengMeng.url),Assets.load<Texture>(rigConfig.houyi.url),Assets.load<Texture>(changeRigConfig.url)]);
+  await Promise.all([Assets.load<Texture>(config.background.url),Assets.load<Texture>(config.pengMeng.url),Assets.load<Texture>(rigConfig.houyi.url),Assets.load<Texture>(changeRigConfig.url)]);
 }
 export function createFengMeng():Container {
   const c=config.pengMeng,texture=Assets.get<Texture>(c.url);
@@ -21,6 +21,6 @@ export function createFengMeng():Container {
   } else {
     sprite.anchor.set(0,1);sprite.scale.set(c.height/texture.height);art.addChild(sprite);
   }
-  root.addChild(art);applyLeatherLook(root);
+  root.addChild(art);root.scale.x=c.flipX?-1:1;applyLeatherLook(root);
   return root;
 }

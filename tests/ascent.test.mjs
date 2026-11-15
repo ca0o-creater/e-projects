@@ -1,6 +1,24 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';
 import {AscentController} from '../src/interaction/ascent.ts';import {scene3Config as c} from '../src/config/scene3.config.ts';
-const travel=c.character.startY-c.character.endY;
+import {ascentDragDistance,ascentPoseAt} from '../src/scenes/ascent-pose.ts';
+import {Container,Texture} from 'pixi.js';
+import {createChangeRig} from '../src/characters/change.ts';
+import {changeRigConfig as rigConfig} from '../src/config/change-rig.ts';
+const travel=ascentDragDistance;
+test('飞近放大时真实腰部与抓取点始终重合，拖动距离包含缩放位移',()=>{
+ const parent=new Container(),rig=createChangeRig(Texture.EMPTY);parent.addChild(rig.root);
+ const s=new AscentController(()=>{});s.prepare();const start=s.point;s.input({type:'GRAB',point:start});
+ for(let i=0;i<=100;i++){
+  const p=i/100,pose=ascentPoseAt(p);rig.root.position.set(pose.x,pose.y);rig.root.scale.set(pose.scale);
+  const waist=rig.root.toGlobal({x:c.character.waist.x-rigConfig.origin.x,y:c.character.waist.y-rigConfig.origin.y});
+  assert.ok(Math.hypot(waist.x-pose.point.x,waist.y-pose.point.y)<1e-6);
+  s.input({type:'MOVE',point:{x:start.x,y:start.y-travel*p}});
+  assert.ok(Math.abs(s.progress-p)<1e-8);assert.ok(Math.abs(s.point.y-(start.y-travel*p))<1e-8);
+ }
+ assert.equal(ascentPoseAt(0).scale,c.character.startScale);
+ assert.ok(Math.abs(ascentPoseAt(1).scale-c.character.endScale)<1e-8);
+ parent.destroy({children:true});
+});
 function setup(){let n=0;const s=new AscentController(()=>n++);s.prepare();return {s,count:()=>n};}
 function drag(s,p){const start=s.point;s.input({type:'GRAB',point:start});s.input({type:'MOVE',point:{x:start.x,y:start.y-p*travel}});}
 test('入场锁定、只抓主杆，X轴锁定，Y轴限制在范围内',()=>{const s=new AscentController(()=>{});s.input({type:'GRAB',point:s.point});assert.equal(s.state,'intro');s.prepare();s.input({type:'GRAB',point:{x:0,y:0}});assert.equal(s.state,'ready');const x=s.point.x;drag(s,.5);s.input({type:'MOVE',point:{x:1500,y:0}});assert.equal(s.progress,1);assert.equal(s.point.x,x);});
