@@ -1,6 +1,7 @@
 import {ActThreeScene} from './scenes/act-three';
 import {scene3Config} from './config/scene3.config';
 import {HoldButtonAdapter} from './input/hold-button';
+import {EndingFilm} from './ending-film';
 import { Application } from 'pixi.js';
 import './style.css';
 import { actOneConfig } from './config/act-one';
@@ -27,6 +28,7 @@ const replayButton=document.querySelector<HTMLButtonElement>('#replay-button')!;
 const reviewButton=document.querySelector<HTMLButtonElement>('#review-button')!;
 const reviewPanel=document.querySelector<HTMLElement>('#review-panel')!;
 let assistInput:HoldButtonAdapter|undefined;
+let endingFilm:EndingFilm|undefined;
 const DESIGN_WIDTH = actOneConfig.stage.width;
 const DESIGN_HEIGHT = actOneConfig.stage.height;
 let app: Application | undefined;
@@ -59,7 +61,7 @@ function syncFullscreen(): void {
   entrance.hidden = active;
   resize();
   if (!ready) return;
-  if (active && !document.hidden && previewTime === null) {
+  if (active && !document.hidden && previewTime === null && !['video','ending'].includes(endingFilm?.phase??'')) {
     app?.start();
   } else {
     input?.cancel();
@@ -111,18 +113,23 @@ function renderSceneUI():void {
   nextButton.hidden=!(controller.state==='complete' && !(scene instanceof ActThreeScene));
   nextButton.textContent=scene instanceof ActTwoScene?'月宫':'前往凡间';
   ascentAssist.hidden=!(scene instanceof ActThreeScene && ['ready','dragging','armed'].includes(controller.state));
-  replayButton.hidden=reviewButton.hidden=!(scene instanceof ActThreeScene && controller.state==='complete');
+  replayButton.hidden=reviewButton.hidden=true; // 第三幕的结尾按钮由 DOM 电影流程管理。
   stage.dataset.scene=scene instanceof ActOneScene?'act-one':scene instanceof ActTwoScene?'act-two':'act-three';
   stage.dataset.sceneState=scene instanceof ActOneScene?'scene1':scene.sceneState;
   stage.dataset.interactionState=controller.state;
   stage.dataset.handoffState=scene instanceof ActOneScene?controller.state:'';
+  if(scene instanceof ActThreeScene){
+    if(controller.state==='ending'||controller.state==='complete')handoffStatus.textContent='';
+    if(controller.state==='complete')endingFilm?.start();
+    if(endingFilm?.phase==='ending')stage.dataset.sceneState='ending';
+  }
 }
 
 function mountScene(scene:ActOneScene|ActTwoScene|ActThreeScene):void {
   if(!app) return;
   lifetime.dispose(); // 输入取消、ticker 注销、声音/计时清理、显示树销毁均先于新幕挂载。
   lifetime=new SceneLifetime();
-  currentScene=scene;reviewPanel.hidden=true;assistInput=undefined;
+  currentScene=scene;reviewPanel.hidden=true;assistInput=undefined;endingFilm=undefined;
   app.stage.addChild(scene);
   lifetime.add(()=>destroyScene(scene));
   if(!(scene instanceof ActOneScene)) lifetime.add(()=>scene.dispose());
@@ -134,6 +141,10 @@ function mountScene(scene:ActOneScene|ActTwoScene|ActThreeScene):void {
   const adapter=input;
   lifetime.add(()=>adapter.dispose());
   if(scene instanceof ActThreeScene){
+    const film=new EndingFilm(()=>{stage.dataset.sceneState='ending';input?.dispose();assistInput?.dispose();app?.stop();},
+      ()=>{lifetime.dispose();currentScene=undefined;input=undefined;mountScene(new ActOneScene());syncFullscreen();},
+      ()=>{input?.dispose();assistInput?.dispose();app?.stop();});
+    endingFilm=film;lifetime.add(()=>film.dispose());
     const hold=new HoldButtonAdapter(ascentAssist,()=>scene.ascent.startAssist(),()=>scene.ascent.cancel());
     assistInput=hold;lifetime.add(()=>hold.dispose());
   }
