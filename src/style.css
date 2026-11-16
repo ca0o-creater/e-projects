@@ -4,6 +4,21 @@
   background: #352218;
 }
 
+.input-panel {position:absolute;top:2%;right:2%;z-index:3;max-width:300px;padding:10px 14px;border:1px solid #a08051;border-radius:6px;background:#2c251de8;color:#fbe6bd;font-size:clamp(11px,1vw,15px);pointer-events:auto;}
+.input-panel select {max-width:100%;padding:5px;border-radius:3px;background:#f3e1c2;color:#382819;font:inherit;}
+.input-panel select:focus-visible {outline:2px solid white;outline-offset:3px;}
+.input-panel p {margin:8px 0 0;line-height:1.5;}
+.input-panel video {display:block;width:144px;max-width:100%;margin-top:8px;transform:scaleX(-1);border-radius:4px;}
+.input-panel button {margin-top:8px;padding:5px 9px;border:1px solid #a08051;border-radius:3px;background:#f3e1c2;color:#382819;font:inherit;cursor:pointer;}
+.input-panel button:focus-visible {outline:2px solid white;outline-offset:3px;}
+.gesture-preview {position:absolute;left:2%;top:8%;width:min(25%,320px);z-index:3;border:1px solid #b79864;border-radius:6px;overflow:hidden;background:#20282ee8;pointer-events:none;}
+#stage .gesture-preview canvas {width:100% !important;height:auto !important;}
+.gesture-preview p {margin:0;padding:6px;color:#e8efd7;font-size:clamp(10px,.9vw,14px);}
+.gesture-cursor[data-inside-roi='false'][data-grabbing='false'] {opacity:.35;}
+.gesture-cursor {position:absolute;z-index:4;width:30px;height:30px;border:2px solid #fff8db;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 12px #f5cf72;background:#fff4c326;pointer-events:none;}
+.gesture-cursor[data-available='true'] {border-color:#a1ffca;box-shadow:0 0 16px #90ffc4;}
+.gesture-cursor[data-grabbing='true'] {background:#ffe297b0;border-color:#fff;}
+
 .ending-film {position:fixed;inset:0;width:100vw;height:100vh;object-fit:cover;z-index:9999;opacity:0;pointer-events:none;}
 .ending-film.is-visible {opacity:1;}
 body[data-ending] #stage,body[data-ending] #entrance,body[data-ending] #viewport-size {visibility:hidden;pointer-events:none;}
@@ -74,6 +89,7 @@ body {
   color: #f5dfb6;
   text-shadow: 0 2px 8px #211a16;
   bottom: 5%;
+  left:10%;width:80%;white-space:pre-line;line-height:1.6;
 }
 .stage-button {
   pointer-events: auto; position: absolute; padding: 10px 24px;

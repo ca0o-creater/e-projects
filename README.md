@@ -128,11 +128,11 @@ Set-Location -LiteralPath 'C:\Users\曹钰瑄\Desktop\e-projects'
 
 浏览器打开 `http://127.0.0.1:5180/?preview=act-two` 检查完整入场；加 `&skipIntro=1` 直接检查交互。开发静帧 `&time=2.5` 检查后羿淡出，`&time=10` 检查逼药台词与输入锁定，`&time=12` 检查解锁构图（静帧不播放动画）。`tests/act-two-preview.html?pose=half` 可检查真实手腕抬臂挂点。
 
-测试顺序：入场及台词期间尝试拖动药瓶，应无效；台词消失后抬到半途松手，应复位；再次抬到面部停稳 400ms，提示后松手，应解锁月宫；点击月宫确认切入第三幕，旧人物和输入被清理。
+测试顺序：入场及台词期间尝试拖动药瓶，应无效；台词消失后抬到半途松手，应复位；再次抬到面部停稳 400ms，提示后松手，应解锁月宫；点击天上明月确认切入第三幕，旧人物和输入被清理。
 
 ## 第三幕：奔月相思
 
-第二幕完成后点击“月宫”，清理旧显示树、滤镜、场景ticker和指针监听，进入 `scene3_intro`。2.5秒入场后，拖动嫦娥腰部主杆光圈升空，X锁定，仅Y轴映射0–1进度。背景使用 scene3_bg.png 的亭子、云纹与天空，原几何云朵、地面和后羿已删除。嫦娥从亭内以实际 scale=0.2 起飞，随进度增至 0.8；背景下移 420 像素，叠加渐深的蓝色渐变，月亮同步放大变亮。右下角以深色矩形遮挡水印。环境只由进度驱动，中途松手或输入取消会保留高度和全部环境状态，再次抓取无跳变。
+第二幕完成后点击右上方明月或天空区域，清理旧显示树、滤镜、场景ticker和指针监听，进入 `scene3_intro`。2.5秒入场后，拖动嫦娥腰部主杆光圈升空，X锁定，仅Y轴映射0–1进度。背景使用 scene3_bg.png 的亭子、云纹与天空，原几何云朵、地面和后羿已删除。嫦娥从亭内以实际 scale=0.2 起飞，随进度增至 0.8；背景下移 420 像素，叠加渐深的蓝色渐变，月亮同步放大变亮。右下角以深色矩形遮挡水印。环境只由进度驱动，中途松手或输入取消会保留高度和全部环境状态，再次抓取无跳变。
 
 达到95%并保持按住停稳400ms，显示“松手，飞入月宫”；合格松手进入 `scene3_complete` 并锁定输入，播放2.4秒入月淡出与0.8秒月晕脉冲。随后显示“清冷月宫，相思无尽”、“重演”（从第一幕重新开始）与“知识回顾”（打开故事与皮影操演回顾面板）。辅助升空按钮必须持续按住，进度每秒增加0.13，到顶停稳后自动收尾；提前松开、失焦、Esc均停在当前位置。
 
@@ -151,3 +151,45 @@ ended 后，末帧在700ms内淡出，底层为深灰色；字幕随后淡入，
 调整 `scene3.config.ts` 的 `ending` 和 `video` 可修改入月时长、缩小倍率、月晕强度、视频路径、播放目标时长与淡入时间。
 
 完整检查：打开 `http://127.0.0.1:5180/?preview=act-three`，拖到95%以上并停稳400ms后松手，确认控制光圈和辅助按钮消失，人物入月淡出、月晕脉冲、视频、字幕、按钮依次出现。`?preview=act-three&pose=complete` 可直接验证视频与DOM结尾。测试缺失容错可临时将配置的 video.url 改为不存在的文件名，刷新后应出现结束界面，检查完恢复原路径。
+
+### 第二幕明月转场
+
+旧 DOM 转场按钮只用于第一幕“前往凡间”，第二幕与第三幕挂载时会从 DOM 移除。第二幕月亮初始隐藏，吞药后的飞升阶段以1.2秒淡入；剧情完成且月亮完全显示后，点击月亮或舞台上方140逻辑像素的天空区域，才会进入 scene3_intro。提前点击无效，同一次完成只转场一次。底部居中分行显示“月宫地点已解锁”和“点击天上明月，前往月宫”。
+
+在 scene2.config.ts 的 moon 中调整 hitRadius、fadeSeconds、skyHitHeight 与光晕参数。开发检查：`http://127.0.0.1:5180/?preview=act-two&pose=complete` 直接到第二幕完成画面，分别测试点击明月和天空；完整流程用 `?preview=act-two`。
+
+## 第一幕手势输入试运行
+
+仅接通第一幕“捏合拖药瓶”节点，第二、三幕仍用原有鼠标/触摸源。右上角“输入方式”选择“摄像头手势（第一幕试用）”才申请摄像头权限；默认使用触摸/鼠标替代模式。摄像头帧只在本机处理，不录制、不上传，不申请麦克风。
+
+`@mediapipe/tasks-vision` 使用 package.json / package-lock.json 固定版本。模型在 `public/mediapipe/hand_landmarker.task`；`npm run dev` / `npm run build` 自动从已安装依赖复制对应 WASM，因此运行时不依赖外部 CDN。新克隆先运行 `npm.cmd ci`。
+
+```powershell
+Set-Location -LiteralPath 'C:\Users\曹钰瑄\Desktop\e-projects'
+& 'D:\DevTools\nodejs\npm.cmd' run dev -- --port 5180
+```
+
+打开 `http://127.0.0.1:5180/?preview=act-one&skipIntro=1` 直接检查单节点（只在开发模式有效）；完整体验打开根地址。须用 localhost / 127.0.0.1 或 HTTPS 允许摄像头，普通局域网 HTTP 不可用。
+
+操作与验收：
+1. 选择摄像头模式，允许权限。先张开拇指和食指，在左上镜像预览的绿色框内移动，让舞台光标对准药瓶（命中时变绿），再捏合；持续捏合向后羿移动，出现“已接住，可以松手了”后张开，完成交接。抓取时记录手部与瓶子各自的位置，之后按位移增量移动；即使命中瓶子边缘，第一帧也不会把瓶子拉到光标处。
+2. 在空白处捏合再移到药瓶上，不应抓取；需张开后重新捏合。半路张开应沿原路径复位。
+3. 抓药后把手移出镜头至少 500ms，应取消并复位；重新入镜先张开手再捏合。已吸附但丢手也不能误判成功。
+4. 拖动中改选“触摸/鼠标替代模式”，应复位并关闭摄像头；鼠标可立即接管。拒绝权限、没有摄像头、模型加载失败或启动超时会自动回退，并显示原因。
+5. Esc、切换窗口或隐藏页面会取消当前抓取。完成第一幕/进入第二幕后移除手势 UI、释放摄像头轨道、检测器和监听；后两幕不接手势。
+6. 摄像头预览显示21个关键点、手部连线和中央60%有效操偶区。按 D 或点击“隐藏摄像头预览”隐藏，再按一次恢复；只隐藏预览，不会停用手势。输入框/下拉框正在编辑时不响应 D，可点击显隐按钮。
+7. 在框内少量移动即可覆盖整个1920×1080舞台。未捕获时框外不能开始抓取；已抓取后移出绿框仍保持捕获，超出预设路径包围范围停在最近端点，不会飞出舞台。手真正离开镜头/无有效检测超过500ms才取消。测试不同浏览器宽高，动作仍使用逻辑坐标，无需重新校准黑边。
+
+架构：`PinchController` 将21个手部关键点转换为 `GRAB_START / CONTROL_UPDATE / GRAB_END`。`gesture-semantics.ts` 映射到项目已存在的 `GRAB / MOVE / RELEASE`（取消为 `RELEASE {cancelled:true}`），无需改动剧情与动画。`GestureInputAdapter` 管理 MediaPipe 和摄像头；`ActOneInput` 保证鼠标与手势源互斥，并防止延迟授权复活已销毁的场景。`gesture-mapping.ts` 负责镜像、ROI和相对位移；`handoff-target.ts` 在抓取瞬间快照现有贝塞尔路径，限制输入，不改鼠标或状态机。`gesture-preview.ts` 用同一镜像坐标绘制视频、骨架与ROI，保持源视频宽高比、不裁切。检测限速24fps，当前骨架使用 CPU 同步推理，低性能展机后续可迁入 Worker。
+
+调参入口 `src/config/gesture.config.ts`：
+- `pinch.close / open`：指尖距离相对于掌宽的捏合/张开阈值，具有滞回；`confirmMs` 为捏合确认时间。
+- `filter.minCutoff / beta / derivativeCutoff`：One Euro 平滑参数；坐标单位为舞台逻辑像素。
+- `mirrorX / stage`：镜像方向、逻辑舞台尺寸，独立于浏览器黑边和缩放。
+- `roi.x / y / width / height`：镜像后归一化摄像头坐标中的有效活动区，默认 `(0.2, 0.2, 0.6, 0.6)`。`preview.width / height` 为调试画布默认尺寸，实际按视频比例适配。
+- `lostHandMs / inferenceFps / startupTimeoutMs`：丢手等待、检测帧率与启动超时。
+- `wasmPath / modelPath`：本地运行时与模型路径。
+
+自动检查：`& 'D:\DevTools\nodejs\node.exe' --experimental-strip-types --test tests/*.test.mjs`；编译构建：`& 'D:\DevTools\nodejs\npm.cmd' run build`。`/tests/gesture-runtime.html` 可在不启用摄像头的情况下验证真实 WASM、模型加载和 VIDEO 推理；`/tests/gesture-preview.html` 使用明确标注的合成关键点验证预览绘制与显隐。手势闭环、ROI边界、相对位移、路径限位与失败回退通过合成关键点/模拟媒体接口测试，实机捏合手感需按上面的步骤用摄像头验收。
+
+实现参考：[MediaPipe Hand Landmarker 官方文档](https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker/web_js)、[learn-hunger/visual-gestures](https://github.com/learn-hunger/visual-gestures)。适配层为本项目独立实现，未引入完整的第三方手势框架。

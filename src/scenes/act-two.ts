@@ -1,4 +1,5 @@
-import { Assets, BlurFilter, Container, Graphics, Sprite, Text, type Texture, type Ticker } from 'pixi.js';
+import { Assets, BlurFilter, Circle, Rectangle, Container, Graphics, Sprite, Text, type Texture, type Ticker } from 'pixi.js';
+import {moonExitAt} from './moon-exit.ts';
 import { scene2Config as c } from '../config/scene2.config.ts';
 import { SwallowController } from '../interaction/swallow.ts';
 import { createFengMeng } from '../characters/fengmeng.ts';
@@ -34,7 +35,9 @@ export class ActTwoScene extends Container {
   private departureRightExtent=0;
   private readonly title=caption('凡间 · 嫦娥吞药',54,c.colors.caption);
   private readonly introText=caption('后羿离家，逢蒙逼药',29,c.colors.caption);
-  private readonly moon=new Graphics();
+  private readonly moon=new Container({label:'点击明月前往月宫'});
+  private readonly skyHit=new Container({label:'天空转场容错区'});
+  private navigating=false;
   private readonly flash=new Graphics();
 
   get sceneState():string {
@@ -44,7 +47,7 @@ export class ActTwoScene extends Container {
   }
   constructor() {
     super({label:'第二幕 · 凡间庭院'});
-    this.eventMode='none';
+    this.eventMode='passive';
     this.drawCourtyard();
     const houyi=createImageHouyi();
     houyi.root.scale.set(-c.departingHouyi.scale,c.departingHouyi.scale);
@@ -58,6 +61,16 @@ export class ActTwoScene extends Container {
     this.title.position.copyFrom(c.captions.title);this.introText.position.copyFrom(c.captions.intro);
     this.warning.position.copyFrom(c.captions.warning);
     this.addChild(this.title,this.introText,this.warning);
+    const m=c.moon;
+    const glow=new Graphics().circle(0,0,m.haloRadius).fill({color:m.color,alpha:m.haloAlpha});
+    glow.filters=[new BlurFilter({strength:12})];
+    this.moon.addChild(glow,new Graphics().circle(0,0,m.radius).fill(m.color));
+    this.moon.position.set(m.x,m.y);this.moon.hitArea=new Circle(0,0,m.hitRadius);
+    this.skyHit.hitArea=new Rectangle(0,0,c.stage.width,m.skyHitHeight);
+    this.moon.cursor=this.skyHit.cursor='pointer';
+    this.moon.on('pointertap',event=>{event.stopPropagation();if(event.button===0)this.requestMoon();});
+    this.skyHit.on('pointertap',event=>{if(event.button===0)this.requestMoon();});
+    this.addChild(this.skyHit,this.moon);
     this.seek(0);
   }
   private drawCourtyard():void {
@@ -67,8 +80,6 @@ export class ActTwoScene extends Container {
     courtyard.anchor.set(bg.flipX?1:0,0);
     courtyard.scale.set(bg.flipX?-bg.scale:bg.scale,bg.scale);
     courtyard.position.set(bg.x,bg.y);this.addChild(courtyard);
-    const m=c.moon;
-    this.moon.circle(m.x,m.y,m.radius).fill(m.color);this.moon.alpha=m.alpha;this.addChild(this.moon);
     // 夜色只压暗庭院与月亮，人物和交互提示在遮罩之上。
     this.addChild(new Graphics({label:'庭院夜色遮罩'}).rect(0,0,c.stage.width,c.stage.height)
       .fill({color:0x000000,alpha:bg.nightOpacity}));
@@ -122,7 +133,9 @@ export class ActTwoScene extends Container {
     this.figure.y=-rise*c.ending.riseHeight;
     this.changeRig.head.rotation=-0.28*Math.sin(clamp(ending/c.ending.swallowSeconds)*Math.PI);
     this.pengMeng.alpha*=1-rise*0.65;
-    this.moon.alpha=c.moon.alpha+rise*0.5;
+    const exit=moonExitAt(s.state,ending);
+    this.moon.alpha=exit.alpha;
+    this.moon.eventMode=this.skyHit.eventMode=exit.enabled&&!this.navigating?'static':'none';
     const a=c.arm;
     this.changeRig.pose(s.progress);
     // 从真实掌心挂点读取坐标，控制圈、瓶子、手杆始终与原图手掌一致。
@@ -154,5 +167,14 @@ export class ActTwoScene extends Container {
     if(rise>0 && rise<1) this.flash.circle(c.changE.x+15,c.changE.y-260+this.figure.y,75+rise*160)
       .stroke({color:c.colors.glow,width:3,alpha:Math.sin(rise*Math.PI)*0.4});
   }
-  dispose():void { this.swallow.dispose(); }
+  get transitionMessage():string {
+    if(this.swallow.state==='complete')return '月宫地点已解锁\n点击天上明月，前往月宫';
+    if(this.swallow.state==='swallowing'&&this.swallow.endingElapsed>=c.ending.swallowSeconds)return '点击天上明月，前往月宫';
+    return this.swallow.message;
+  }
+  private requestMoon():void {
+    if(this.navigating||!moonExitAt(this.swallow.state,this.swallow.endingElapsed).enabled)return;
+    this.navigating=true;this.moon.eventMode=this.skyHit.eventMode='none';this.emit('navigate-to-moon');
+  }
+  dispose():void { this.navigating=true;this.moon.removeAllListeners();this.skyHit.removeAllListeners();this.swallow.dispose(); }
 }

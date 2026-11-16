@@ -4,11 +4,14 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "predev": "node scripts/prepare-mediapipe.mjs",
     "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",
+    "prebuild": "node scripts/prepare-mediapipe.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@mediapipe/tasks-vision": "1.2.3",
     "pixi-filters": "^6.1.5",
     "pixi.js": "^8.22.0"
   },

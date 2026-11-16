@@ -1,0 +1,18 @@
+<!doctype html><html lang="zh-CN"><meta charset="UTF-8"><title>MediaPipe 本地运行检查</title>
+<body><h1>MediaPipe 本地模型检查（不启用摄像头）</h1>
+<button id="check">加载本地模型并检测空白画布</button><p id="status" role="status">等待检查</p>
+<script type="module">
+import {FilesetResolver,HandLandmarker} from '@mediapipe/tasks-vision';
+import {gestureConfig} from '../src/config/gesture.config.ts';
+document.querySelector('#check').onclick=async()=>{
+  const status=document.querySelector('#status');status.textContent='加载中…';let tracker;
+  try{
+    const files=await FilesetResolver.forVisionTasks(gestureConfig.wasmPath);
+    tracker=await HandLandmarker.createFromOptions(files,{baseOptions:{modelAssetPath:gestureConfig.modelPath,delegate:'CPU'},runningMode:'VIDEO',numHands:1});
+    const canvas=document.createElement('canvas');canvas.width=640;canvas.height=480;
+    const result=tracker.detectForVideo(canvas,performance.now());
+    status.textContent=`检查通过：本地 WASM、模型及 VIDEO 推理正常，空白画布识别到 ${result.landmarks.length} 只手。`;
+  }catch(error){status.textContent=`检查失败：${error.message}`;console.error(error);}
+  finally{tracker?.close();}
+};
+</script></body></html>

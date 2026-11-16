@@ -9,7 +9,8 @@ export const scene2Config = {
   stage: { width: 1920, height: 1080 },
   // x/y 指翻转后的图片左上角；固定构图，不使用 cover 自动铺满。
   background: {url:'/assets/scene2_bg.png',scale:1.3,x:-150,y:80,flipX:true,nightOpacity:0.4},
-  moon: {x:1730,y:40,radius:30,color:'#e1d9b8',alpha:0.3},
+  moon: {x:1730,y:40,radius:30,color:'#fff0bc',hitRadius:75,fadeSeconds:1.2,
+    haloRadius:52,haloAlpha:0.35,skyHitHeight:140},
   captions: {title:{x:960,y:150},intro:{x:960,y:215},warning:{x:960,y:40},
     warningText:'逢蒙持刀逼迫，嫦娥护药'},
   colors: { background: '#2d2728', courtyard: '#463832', light: '#9a805d', ink: '#201b20',

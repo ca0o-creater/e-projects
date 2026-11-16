@@ -9,6 +9,9 @@ import { actOneIntroEnd } from './config/characters';
 import { ActOneScene } from './scenes/act-one';
 import { loadRigAssets } from './characters/image-rigs';
 import { PointerInputAdapter } from './input/pointer-adapter';
+import { ActOneInput } from './input/act-one-input';
+import { captureHandoffTarget } from './input/handoff-target';
+import { receivingHand } from './characters/poses';
 import { ActTwoScene } from './scenes/act-two';
 import { actTwoConfig } from './config/act-two';
 import { loadActTwoAssets } from './characters/fengmeng';
@@ -34,7 +37,7 @@ const DESIGN_HEIGHT = actOneConfig.stage.height;
 let app: Application | undefined;
 let ready = false;
 let entering = false;
-let input: PointerInputAdapter | undefined;
+let input: PointerInputAdapter | ActOneInput | undefined;
 let currentScene: ActOneScene | ActTwoScene | ActThreeScene | undefined;
 let lifetime = new SceneLifetime();
 const events = new AbortController();
@@ -108,10 +111,10 @@ function renderSceneUI():void {
   const scene=currentScene;
   if(!scene) return;
   const controller=scene instanceof ActOneScene ? scene.handoff:scene instanceof ActTwoScene?scene.swallow:scene.ascent;
-  if(handoffStatus.textContent!==controller.message) handoffStatus.textContent=controller.message;
+  const message=scene instanceof ActTwoScene?scene.transitionMessage:controller.message;
+  if(handoffStatus.textContent!==message) handoffStatus.textContent=message;
   assistButton.hidden=!(scene instanceof ActOneScene && ['ready','dragging','snapped','returning'].includes(controller.state));
-  nextButton.hidden=!(controller.state==='complete' && !(scene instanceof ActThreeScene));
-  nextButton.textContent=scene instanceof ActTwoScene?'月宫':'前往凡间';
+  nextButton.hidden=!(scene instanceof ActOneScene && controller.state==='complete');
   ascentAssist.hidden=!(scene instanceof ActThreeScene && ['ready','dragging','armed'].includes(controller.state));
   replayButton.hidden=reviewButton.hidden=true; // 第三幕的结尾按钮由 DOM 电影流程管理。
   stage.dataset.scene=scene instanceof ActOneScene?'act-one':scene instanceof ActTwoScene?'act-two':'act-three';
@@ -130,6 +133,8 @@ function mountScene(scene:ActOneScene|ActTwoScene|ActThreeScene):void {
   lifetime.dispose(); // 输入取消、ticker 注销、声音/计时清理、显示树销毁均先于新幕挂载。
   lifetime=new SceneLifetime();
   currentScene=scene;reviewPanel.hidden=true;assistInput=undefined;endingFilm=undefined;
+  if(scene instanceof ActOneScene)document.querySelector('#handoff-ui')!.append(nextButton);
+  else nextButton.remove(); // 第二、三幕 DOM 中不保留旧转场按钮。
   app.stage.addChild(scene);
   lifetime.add(()=>destroyScene(scene));
   if(!(scene instanceof ActOneScene)) lifetime.add(()=>scene.dispose());
@@ -137,7 +142,10 @@ function mountScene(scene:ActOneScene|ActTwoScene|ActThreeScene):void {
   const ticker=app.ticker;
   lifetime.add(()=>ticker.remove(scene.update));
   const controller=scene instanceof ActOneScene?scene.handoff:scene instanceof ActTwoScene?scene.swallow:scene.ascent;
-  input=new PointerInputAdapter(app.canvas,controller.input,point=>controller.canGrab(point));
+  input=scene instanceof ActOneScene
+    ?new ActOneInput(stage,app.canvas,controller.input,point=>controller.canGrab(point),
+      ()=>scene.handoff.state==='ready'?captureHandoffTarget(scene.handoff.point,receivingHand(1)):null)
+    :new PointerInputAdapter(app.canvas,controller.input,point=>controller.canGrab(point));
   const adapter=input;
   lifetime.add(()=>adapter.dispose());
   if(scene instanceof ActThreeScene){
@@ -152,11 +160,19 @@ function mountScene(scene:ActOneScene|ActTwoScene|ActThreeScene):void {
   // 后续音轨、独立计时器必须登记 lifetime.audio / timeout / interval。
   if(scene instanceof ActOneScene) {
     scene.once('handoff-complete',()=>{
+      adapter.dispose(); // 第一幕单节点完成即停止摄像头，后续场景仍使用原输入源。
       window.dispatchEvent(new CustomEvent('mortal-unlocked',{detail:{sceneId:scene.sceneId}}));
       renderSceneUI();
     });
   } else if(scene instanceof ActTwoScene) {
+    scene.once('navigate-to-moon',()=>queueMicrotask(()=>{
+      if(currentScene!==scene||scene.destroyed)return;
+      lifetime.dispose();currentScene=undefined;input=undefined;
+      mountScene(new ActThreeScene());
+      window.dispatchEvent(new CustomEvent('navigate-to-moon'));syncFullscreen();
+    }));
     scene.once('moon-unlocked',()=>{
+      adapter.dispose(); // 完成后由 Pixi 月亮/天空点击接管，解除拖动监听和鼠标样式。
       window.dispatchEvent(new CustomEvent('moon-unlocked',{detail:{sceneId:scene.sceneId}}));
       renderSceneUI();
     });
@@ -204,11 +220,10 @@ async function main(): Promise<void> {
   }, eventOptions);
   nextButton.addEventListener('click', () => {
     const old=currentScene;
-    if(!old || old instanceof ActThreeScene || (old instanceof ActOneScene?old.handoff:old.swallow).state!=='complete')return;
-    const toMoon=old instanceof ActTwoScene;
+    if(!(old instanceof ActOneScene)||old.handoff.state!=='complete')return;
     lifetime.dispose();currentScene=undefined;input=undefined;
-    mountScene(toMoon?new ActThreeScene():new ActTwoScene());
-    window.dispatchEvent(new CustomEvent(toMoon?'navigate-to-moon':'navigate-to-mortal'));
+    mountScene(new ActTwoScene());
+    window.dispatchEvent(new CustomEvent('navigate-to-mortal'));
     syncFullscreen();
   },eventOptions);
   replayButton.addEventListener('click',()=>{
