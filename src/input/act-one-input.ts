@@ -6,16 +6,21 @@ import type { InputSink, StagePoint } from './semantic.ts';
 import type { CaptureGestureTarget } from './gesture-mapping.ts';
 import { GesturePreview } from './gesture-preview.ts';
 
-/** First-act-only mode owner: at most one input source may be active. */
-export class ActOneInput {
+/** One camera session, rebindable across scenes. Only one source owns stage input. */
+export class SceneInputAdapter {
   private source?: PointerInputAdapter | GestureInputAdapter;
   private generation = 0;
   private disposed = false;
   private readonly stage: HTMLElement;
   private readonly canvas: HTMLCanvasElement;
-  private readonly send: InputSink;
-  private readonly canGrab: (point: StagePoint) => boolean;
-  private readonly captureTarget?: CaptureGestureTarget;
+  private send: InputSink;
+  private canGrab: (point: StagePoint) => boolean;
+  private captureTarget?: CaptureGestureTarget;
+  private bound = true;
+  private readonly uiPointers = new Set<number>();
+  private readonly dispatch:InputSink = event=>{if(this.bound)this.send(event);};
+  private readonly hit=(p:StagePoint)=>this.bound&&this.uiPointers.size===0&&this.canGrab(p);
+  private readonly capture=()=>this.bound?this.captureTarget?.()??null:null;
   private readonly preview: GesturePreview;
   private readonly panel = document.createElement('section');
   private readonly mode = document.createElement('select');
@@ -27,10 +32,10 @@ export class ActOneInput {
   constructor(stage: HTMLElement, canvas: HTMLCanvasElement, send: InputSink, canGrab: (p: StagePoint) => boolean, captureTarget?: CaptureGestureTarget) {
     this.stage = stage; this.canvas = canvas; this.send = send; this.canGrab = canGrab;
     this.captureTarget = captureTarget;
-    this.panel.className = 'input-panel'; this.panel.setAttribute('aria-label', '第一幕输入模式');
+    this.panel.className = 'input-panel'; this.panel.setAttribute('aria-label', '舞台输入模式');
     const label = document.createElement('label'); label.textContent = '输入方式 ';
     this.mode.setAttribute('aria-label', '输入方式');
-    for (const [value, text] of [['pointer','触摸/鼠标替代模式'], ['gesture','摄像头手势（第一幕试用）']]) {
+    for (const [value, text] of [['pointer','触摸/鼠标替代模式'], ['gesture','摄像头手势（三幕通用）']]) {
       const option = document.createElement('option'); option.value = value; option.textContent = text; this.mode.append(option);
     }
     label.append(this.mode);
@@ -43,16 +48,41 @@ export class ActOneInput {
     this.mode.addEventListener('change', () => {
       if (this.mode.value === 'gesture') void this.useGesture(); else this.usePointer();
     }, { signal: this.events.signal });
+    const options={signal:this.events.signal,capture:true};
+    // Capture phase precedes button handlers, including the hold-to-assist pointerdown.
+    window.addEventListener('pointerdown',event=>{
+      if(!this.isUI(event.target))return;
+      this.uiPointers.add(event.pointerId);this.reset();
+    },options);
+    for(const type of ['pointerup','pointercancel'])window.addEventListener(type,event=>{
+      this.uiPointers.delete((event as PointerEvent).pointerId);
+    },options);
+    window.addEventListener('click',event=>{if(this.isUI(event.target))this.reset();},options);
+    window.addEventListener('blur',()=>{this.uiPointers.clear();this.reset();},options);
     this.usePointer();
   }
 
-  private usePointer(message = '可用鼠标或触摸拖动药瓶。'): void {
+  private isUI(target:EventTarget|null):boolean {
+    return Boolean((target as Element|null)?.closest?.('button,select,input,a,[role="button"]'));
+  }
+
+  bind(send:InputSink,canGrab:(p:StagePoint)=>boolean,captureTarget:CaptureGestureTarget):void {
+    this.reset(); // Release to the old controller BEFORE changing the receiver.
+    this.send=send;this.canGrab=canGrab;this.captureTarget=captureTarget;this.bound=true;
+  }
+  unbind():void {
+    this.reset();this.bound=false;this.send=()=>{};this.canGrab=()=>false;this.captureTarget=undefined;
+    this.canvas.style.cursor='default';
+  }
+  reset():void {this.source?.cancel();}
+
+  private usePointer(message = '可用鼠标或触摸拖动当前发光控制点。'): void {
     if (this.disposed) return;
     ++this.generation; this.source?.dispose();
     this.mode.value = 'pointer'; this.video.hidden = true; this.dot.hidden = true;
     this.preview.setEnabled(false);
     this.status.textContent = message; this.panel.dataset.mode = 'pointer';
-    this.source = new PointerInputAdapter(this.canvas, this.send, this.canGrab);
+    this.source = new PointerInputAdapter(this.canvas, this.dispatch, this.hit);
   }
 
   private async useGesture(): Promise<void> {
@@ -65,19 +95,20 @@ export class ActOneInput {
         : error instanceof Error ? error.message : '摄像头不可用';
       this.usePointer(`${reason}，已切回触摸/鼠标替代模式。`);
     };
-    const adapter = new GestureInputAdapter(this.video, this.send, this.canGrab, this.showCursor,
-      () => !this.stage.hidden && !document.hidden, fallback, this.captureTarget,
+    const adapter = new GestureInputAdapter(this.video, this.dispatch, this.hit, this.showCursor,
+      () => this.bound && !this.stage.hidden && !document.hidden, fallback, this.capture,
       landmarks=>this.preview.draw(this.video,landmarks));
     this.source = adapter;
     try {
       await adapter.start();
       if (this.disposed || id !== this.generation) { adapter.dispose(); return; }
       this.panel.dataset.mode = 'gesture'; this.preview.setEnabled(true);
-      this.status.textContent = '绿框内张开手对准药瓶，捏合后相对移动，张开松手。画面仅在本机处理。';
+      this.status.textContent = '绿框内张开手对准光点，捏合后移动；第二、三幕向上抬手。切幕后先张开再捏合。';
     } catch (error) { fallback(error); }
   }
 
   private readonly showCursor = (cursor: HandCursor | null): void => {
+    this.preview.updateMetrics(cursor?.diagnostics??null);
     this.dot.hidden = !cursor;
     if (!cursor) return;
     this.dot.style.left = `${cursor.point.x / gestureConfig.stage.width * 100}%`;
@@ -87,10 +118,14 @@ export class ActOneInput {
     this.dot.dataset.insideRoi = String(cursor.insideRoi);
   };
 
-  cancel(): void { this.source?.cancel(); }
+  cancel(): void { this.reset(); }
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true; ++this.generation;
     this.source?.dispose(); this.events.abort(); this.preview.dispose();this.panel.remove(); this.dot.remove();
+    this.bound=false;this.send=()=>{};this.canGrab=()=>false;this.captureTarget=undefined;this.uiPointers.clear();
   }
 }
+
+// Compatibility for existing callers/tests; all scenes now use SceneInputAdapter.
+export { SceneInputAdapter as ActOneInput };

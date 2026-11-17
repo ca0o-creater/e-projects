@@ -30,6 +30,11 @@ function fixture(mediaDevices){
       if(original)Object.defineProperty(globalThis,'navigator',original);else delete globalThis.navigator;}};
 }
 function down(canvas){canvas.dispatchEvent(Object.assign(new Event('pointerdown'),{pointerId:1,isPrimary:true,button:0,clientX:960,clientY:540}));}
+function landmarks(closed){
+  const a=Array.from({length:21},()=>({x:.5,y:.5}));const d=closed?.01:.1;
+  a[4]={x:.5-d,y:.5};a[8]={x:.5+d,y:.5};a[5]={x:.4,y:.5};a[17]={x:.6,y:.5};return a;
+}
+function pinchFrames(p,start=0){p.update(landmarks(false),start);p.update(landmarks(true),start+20);p.update(landmarks(true),start+100);}
 
 test('denied camera cancels mouse grab, restores exactly one mouse source',async()=>{
   const f=fixture({getUserMedia:async()=>{throw new DOMException('denied','NotAllowedError');}});
@@ -69,10 +74,44 @@ test('preview button and D toggle only the debug panel; disposal removes keyboar
   try {
     const panel=new Element(),stage=new Element(),preview=new GesturePreview(stage,panel);
     preview.setEnabled(true);assert.equal(preview.root.hidden,false);
+    preview.updateMetrics({distance:.0345,pinched:true,grabbing:true,neutralRequired:false,
+      raw:{x:100,y:200},filtered:{x:99,y:199},stable:{x:98,y:198}});
+    assert.match(preview.metrics.textContent,/0.0345/);assert.match(preview.metrics.textContent,/抓取：是/);
+    assert.match(preview.metrics.textContent,/滤波后：99.0, 199.0/);assert.equal(preview.metrics.hidden,false);
     preview.toggle.dispatchEvent(new Event('click'));assert.equal(preview.root.hidden,true);
+    assert.equal(preview.metrics.hidden,true);
     window.dispatchEvent(Object.assign(new Event('keydown'),{code:'KeyD'}));assert.equal(preview.root.hidden,false);
     window.dispatchEvent(Object.assign(new Event('keydown'),{code:'KeyD',repeat:true}));assert.equal(preview.root.hidden,false);
     preview.dispose();window.dispatchEvent(Object.assign(new Event('keydown'),{code:'KeyD'}));
     assert.equal(preview.root.hidden,false);assert.equal(stage.children.length,0);
+  }finally{f.cleanup();}
+});
+
+test('跨幕只重绑目标、释放旧捕获并清平滑缓存；摄像头请求仅一次，捏合不能跨幕沿用',()=>{
+  let requests=0;const f=fixture({getUserMedia:()=>{requests++;return new Promise(()=>{});}});
+  try {
+    const old=[],next=[],capture=()=>({point:{x:960,y:540},constrain:p=>p});
+    f.input.bind(e=>old.push(e),()=>true,capture);f.choose('gesture');
+    const source=f.input.source;pinchFrames(source.pinch);
+    assert.equal(old[0].type,'GRAB');
+    f.input.bind(e=>next.push(e),()=>true,capture);
+    assert.deepEqual(old.at(-1),{type:'RELEASE',cancelled:true});
+    const oldCount=old.length;source.pinch.update(landmarks(true),120);assert.equal(next.length,0);
+    pinchFrames(source.pinch,150);assert.equal(next[0].type,'GRAB');assert.equal(old.length,oldCount);
+    assert.equal(f.input.source,source);assert.equal(requests,1);assert.equal(f.select.value,'gesture');
+    f.input.unbind();const count=next.length;pinchFrames(source.pinch,300);assert.equal(next.length,count);
+  }finally{f.cleanup();}
+});
+test('UI pointerdown先取消手势；按钮按住期间不许重抓；释放后需先张开才能接管',()=>{
+  const f=fixture({getUserMedia:()=>new Promise(()=>{})});
+  try {
+    f.input.bind(e=>f.events.push(e),()=>true,()=>({point:{x:960,y:540},constrain:p=>p}));
+    f.choose('gesture');const p=f.input.source.pinch;pinchFrames(p);
+    const button={closest:()=>({})};const down=new Event('pointerdown');
+    Object.defineProperties(down,{target:{value:button},pointerId:{value:7}});window.dispatchEvent(down);
+    assert.deepEqual(f.events.at(-1),{type:'RELEASE',cancelled:true});
+    const count=f.events.length;pinchFrames(p,150);assert.equal(f.events.length,count);
+    window.dispatchEvent(Object.assign(new Event('pointerup'),{pointerId:7}));p.update(landmarks(true),280);
+    assert.equal(f.events.length,count);pinchFrames(p,300);assert.equal(f.events[count].type,'GRAB');
   }finally{f.cleanup();}
 });

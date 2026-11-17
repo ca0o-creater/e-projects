@@ -5,6 +5,8 @@ import type { StagePoint } from './semantic.ts';
 export interface GestureTarget {
   point: StagePoint;
   constrain: (point: StagePoint) => StagePoint;
+  trackMotion?: boolean; // 停留判定使用限位前的手部坐标，避免到端点后仍移动却误判停稳。
+  holdInfo?:()=>{distance:number;radius:number;progress:number};
 }
 export type CaptureGestureTarget = () => GestureTarget | null;
 

@@ -8,8 +8,8 @@ import { actOneConfig } from './config/act-one';
 import { actOneIntroEnd } from './config/characters';
 import { ActOneScene } from './scenes/act-one';
 import { loadRigAssets } from './characters/image-rigs';
-import { PointerInputAdapter } from './input/pointer-adapter';
-import { ActOneInput } from './input/act-one-input';
+import { SceneInputAdapter } from './input/act-one-input';
+import { captureSwallowTarget, captureAscentTarget } from './input/scene-targets';
 import { captureHandoffTarget } from './input/handoff-target';
 import { receivingHand } from './characters/poses';
 import { ActTwoScene } from './scenes/act-two';
@@ -37,7 +37,7 @@ const DESIGN_HEIGHT = actOneConfig.stage.height;
 let app: Application | undefined;
 let ready = false;
 let entering = false;
-let input: PointerInputAdapter | ActOneInput | undefined;
+let input: SceneInputAdapter | undefined;
 let currentScene: ActOneScene | ActTwoScene | ActThreeScene | undefined;
 let lifetime = new SceneLifetime();
 const events = new AbortController();
@@ -142,37 +142,38 @@ function mountScene(scene:ActOneScene|ActTwoScene|ActThreeScene):void {
   const ticker=app.ticker;
   lifetime.add(()=>ticker.remove(scene.update));
   const controller=scene instanceof ActOneScene?scene.handoff:scene instanceof ActTwoScene?scene.swallow:scene.ascent;
-  input=scene instanceof ActOneScene
-    ?new ActOneInput(stage,app.canvas,controller.input,point=>controller.canGrab(point),
-      ()=>scene.handoff.state==='ready'?captureHandoffTarget(scene.handoff.point,receivingHand(1)):null)
-    :new PointerInputAdapter(app.canvas,controller.input,point=>controller.canGrab(point));
+  const captureTarget=()=>scene instanceof ActOneScene
+    ?scene.handoff.state==='ready'?captureHandoffTarget(scene.handoff.point,receivingHand(1)):null
+    :scene instanceof ActTwoScene?captureSwallowTarget(scene.swallow):captureAscentTarget(scene.ascent);
+  if(!input)input=new SceneInputAdapter(stage,app.canvas,controller.input,point=>controller.canGrab(point),captureTarget);
+  else input.bind(controller.input,point=>controller.canGrab(point),captureTarget);
   const adapter=input;
-  lifetime.add(()=>adapter.dispose());
+  lifetime.add(()=>adapter.unbind()); // 先取消旧幕捕获，再销毁人物；保留全局摄像头和模式。
   if(scene instanceof ActThreeScene){
-    const film=new EndingFilm(()=>{stage.dataset.sceneState='ending';input?.dispose();assistInput?.dispose();app?.stop();},
+    const film=new EndingFilm(()=>{stage.dataset.sceneState='ending';input?.dispose();input=undefined;assistInput?.dispose();app?.stop();},
       ()=>{lifetime.dispose();currentScene=undefined;input=undefined;mountScene(new ActOneScene());syncFullscreen();},
-      ()=>{input?.dispose();assistInput?.dispose();app?.stop();});
+      ()=>{input?.dispose();input=undefined;assistInput?.dispose();app?.stop();});
     endingFilm=film;lifetime.add(()=>film.dispose());
-    const hold=new HoldButtonAdapter(ascentAssist,()=>scene.ascent.startAssist(),()=>scene.ascent.cancel());
+    const hold=new HoldButtonAdapter(ascentAssist,()=>{adapter.reset();return scene.ascent.startAssist();},()=>scene.ascent.cancel());
     assistInput=hold;lifetime.add(()=>hold.dispose());
   }
   // 两幕动画全部由 ticker 驱动，无 setTimeout/setInterval 或音轨。
   // 后续音轨、独立计时器必须登记 lifetime.audio / timeout / interval。
   if(scene instanceof ActOneScene) {
     scene.once('handoff-complete',()=>{
-      adapter.dispose(); // 第一幕单节点完成即停止摄像头，后续场景仍使用原输入源。
+      adapter.unbind(); // 停止当前节点捕获，摄像头留给下一幕复用。
       window.dispatchEvent(new CustomEvent('mortal-unlocked',{detail:{sceneId:scene.sceneId}}));
       renderSceneUI();
     });
   } else if(scene instanceof ActTwoScene) {
     scene.once('navigate-to-moon',()=>queueMicrotask(()=>{
       if(currentScene!==scene||scene.destroyed)return;
-      lifetime.dispose();currentScene=undefined;input=undefined;
+      lifetime.dispose();currentScene=undefined;
       mountScene(new ActThreeScene());
       window.dispatchEvent(new CustomEvent('navigate-to-moon'));syncFullscreen();
     }));
     scene.once('moon-unlocked',()=>{
-      adapter.dispose(); // 完成后由 Pixi 月亮/天空点击接管，解除拖动监听和鼠标样式。
+      adapter.unbind(); // 完成后由 Pixi 月亮/天空点击接管。
       window.dispatchEvent(new CustomEvent('moon-unlocked',{detail:{sceneId:scene.sceneId}}));
       renderSceneUI();
     });
@@ -221,14 +222,14 @@ async function main(): Promise<void> {
   nextButton.addEventListener('click', () => {
     const old=currentScene;
     if(!(old instanceof ActOneScene)||old.handoff.state!=='complete')return;
-    lifetime.dispose();currentScene=undefined;input=undefined;
+    lifetime.dispose();currentScene=undefined;
     mountScene(new ActTwoScene());
     window.dispatchEvent(new CustomEvent('navigate-to-mortal'));
     syncFullscreen();
   },eventOptions);
   replayButton.addEventListener('click',()=>{
     if(!(currentScene instanceof ActThreeScene)||currentScene.ascent.state!=='complete')return;
-    lifetime.dispose();currentScene=undefined;input=undefined;mountScene(new ActOneScene());syncFullscreen();
+    lifetime.dispose();currentScene=undefined;mountScene(new ActOneScene());syncFullscreen();
   },eventOptions);
   reviewButton.addEventListener('click',()=>{
     if(!(currentScene instanceof ActThreeScene)||currentScene.ascent.state!=='complete')return;
@@ -237,10 +238,11 @@ async function main(): Promise<void> {
   document.querySelector('#review-close')!.addEventListener('click',()=>{reviewPanel.hidden=true;reviewButton.focus();},eventOptions);
   document.querySelector('#review-content')!.replaceChildren();
   for(const text of scene3Config.review){const p=document.createElement('p');p.textContent=text;document.querySelector('#review-content')!.appendChild(p);}
-  window.addEventListener('pagehide', () => {app?.stop();lifetime.dispose();currentScene=undefined;}, { once: true, signal: events.signal });
+  window.addEventListener('pagehide', () => {app?.stop();lifetime.dispose();input?.dispose();input=undefined;currentScene=undefined;}, { once: true, signal: events.signal });
   if (import.meta.hot) import.meta.hot.dispose(() => {
     events.abort();
     lifetime.dispose();
+    input?.dispose();input=undefined;
     app?.destroy(true, { children: true });
   });
   renderSceneUI();

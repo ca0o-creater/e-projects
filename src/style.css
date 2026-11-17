@@ -8,6 +8,7 @@
 .input-panel select {max-width:100%;padding:5px;border-radius:3px;background:#f3e1c2;color:#382819;font:inherit;}
 .input-panel select:focus-visible {outline:2px solid white;outline-offset:3px;}
 .input-panel p {margin:8px 0 0;line-height:1.5;}
+.gesture-metrics {margin:8px 0 0;font:12px/1.6 monospace;white-space:pre-wrap;color:#c2ffda;font-variant-numeric:tabular-nums;}
 .input-panel video {display:block;width:144px;max-width:100%;margin-top:8px;transform:scaleX(-1);border-radius:4px;}
 .input-panel button {margin-top:8px;padding:5px 9px;border:1px solid #a08051;border-radius:3px;background:#f3e1c2;color:#382819;font:inherit;cursor:pointer;}
 .input-panel button:focus-visible {outline:2px solid white;outline-offset:3px;}

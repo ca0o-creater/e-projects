@@ -23,18 +23,17 @@ function fixture(canGrab=()=>true) {
   return {p,events};
 }
 function grab(p,point={x:960,y:540},time=0) {
-  p.update(hand(point,0.6),time);
+  p.update(hand(point,1.0),time);
   p.update(hand(point),time+10);
   p.update(hand(point),time+80);
 }
 
-test('pinch requires open hand first, confirmation and hysteresis; starts and ends once',()=>{
+test('two-tip distance immediately grabs; hysteresis starts and ends once without palm or dwell',()=>{
   const {p,events}=fixture();
   p.update(hand(),0);p.update(hand(),100);
-  assert.equal(events.length,0);
-  grab(p,undefined,120);
+  assert.equal(events.filter(e=>e.type==='GRAB_START').length,1);
   for(let t=210;t<400;t+=20)p.update(hand(undefined,0.34),t);
-  p.update(hand(undefined,0.6),400);p.update(hand(undefined,0.6),420);
+  p.update(hand(undefined,1.0),400);p.update(hand(undefined,1.0),420);
   assert.equal(events.filter(e=>e.type==='GRAB_START').length,1);
   assert.equal(events.filter(e=>e.type==='GRAB_END').length,1);
   assert.equal(events.at(-1).cancelled,undefined);
@@ -47,7 +46,7 @@ test('pinching outside bottle cannot turn into a grab by moving over it',()=>{
 });
 test('mirror and ROI stage mapping; outside ROI holds capture, invalid hand times out safely',()=>{
   const {p,events}=fixture();const point={x:1500,y:300};
-  const cursor=p.update(hand(point,0.6),0,4/3);
+  const cursor=p.update(hand(point,1.0),0,4/3);
   assert.ok(Math.abs(cursor.point.x-point.x)<0.001);assert.ok(Math.abs(cursor.point.y-300)<0.001);
   grab(p,point,20);p.update(hand({x:-10,y:300}),110);
   assert.equal(events.some(e=>e.type==='GRAB_END'),false);
@@ -84,7 +83,7 @@ test('landmarks -> semantic bridge -> existing bottle controller completes once'
   const end=receivingHand(1);
   for(let t=100;t<1500;t+=20)p.update(hand(end),t);
   assert.equal(c.state,'snapped');
-  p.update(hand(end,0.6),1500);assert.equal(c.state,'completing');c.update(5);
+  p.update(hand(end,1.0),1500);assert.equal(c.state,'completing');c.update(5);
   p.cancel();c.update(5);assert.equal(c.state,'complete');assert.equal(successes,1);
 });
 test('loss after bottle snap cancels success and returns to safe ready pose',()=>{
@@ -109,11 +108,11 @@ test('grab captures bottle offset, first frame never jumps; only hand displaceme
   const p=new PinchController(e=>events.push(e),()=>true,()=>({point:target,constrain:p=>p}));
   const origin={x:960,y:540};grab(p,origin);
   assert.deepEqual(events[0],{type:'GRAB_START',point:{x:1000,y:550}});
-  assert.deepEqual(events.at(-1).point,{x:1000,y:550});
+  assert.deepEqual(events.at(-1).delta,{x:0,y:0});
   target.x=1400; // Captured snapshot must not follow the later floating idle target.
   for(let t=100;t<1600;t+=20)p.update(hand({x:1060,y:590}),t);
-  assert.ok(Math.abs(events.at(-1).point.x-1100)<.1);
-  assert.ok(Math.abs(events.at(-1).point.y-600)<.1);
+  assert.ok(Math.abs(events.at(-1).delta.x-100)<config.deadzonePx);
+  assert.ok(Math.abs(events.at(-1).delta.y-50)<config.deadzonePx);
   p.cancel();const before=events.length;p.update(hand({x:1800,y:100}),1700);
   assert.equal(events.length,before); // Still pinched cannot reacquire after cancel.
 });
@@ -125,7 +124,42 @@ test('outside ROI cannot start a grab, but captured overtravel clamps at path en
   grab(p,start,120);
   for(let t=220;t<1600;t+=20)p.update(hand({x:-300,y:900}),t);
   assert.equal(events.some(e=>e.type==='GRAB_END'),false);
-  assert.deepEqual(events.at(-1).point,end);
+  assert.deepEqual(events.at(-1).delta,{x:end.x-start.x,y:end.y-start.y});
   assert.deepEqual(target.constrain({x:-10000,y:10000}),end);
   assert.deepEqual(target.constrain({x:10000,y:-10000}),start);
+});
+
+test('aspect-correct distance uses only 4 and 8, with exact strict hysteresis thresholds',()=>{
+  const {p,events}=fixture();
+  const sample=(distance)=>{const a=[];a[4]={x:.5,y:.5};a[8]={x:.5+distance/(16/9),y:.5};return a;};
+  let c=p.update(sample(.099),0,16/9);assert.equal(events[0].type,'GRAB_START');
+  assert.ok(Math.abs(c.diagnostics.distance-.099)<1e-9);
+  for(const [t,d] of [[20,.101],[40,.149],[60,.12]])p.update(sample(d),t,16/9);
+  assert.equal(events.filter(e=>e.type==='GRAB_END').length,0);
+  p.update(sample(.151),80,16/9);assert.equal(events.at(-1).type,'GRAB_END');
+  const count=events.filter(e=>e.type==='GRAB_START').length;p.update(sample(.12),100,16/9);
+  assert.equal(events.filter(e=>e.type==='GRAB_START').length,count);
+});
+test('2px deadzone suppresses static jitter but slow intentional motion accumulates',()=>{
+  const {p,events}=fixture();const base={x:960,y:540};
+  p.update(hand(base),0);const count=events.length;
+  for(let t=20;t<1000;t+=20){
+    const c=p.update(hand({x:960+Math.sin(t)*.8,y:540+Math.cos(t)*.8}),t);
+    assert.deepEqual(c.point,base);
+    assert.ok(Number.isFinite(c.diagnostics.filtered.x));
+  }
+  assert.equal(events.length,count);
+  for(let i=0;i<120;i++)p.update(hand({x:960+i*.2,y:540}),1000+i*20);
+  assert.ok(events.at(-1).delta.x>15);assert.equal('point' in events.at(-1),false);
+});
+test('opening fingers never sends a final pose-change displacement; late delta after end is ignored',()=>{
+  const {p,events}=fixture();p.update(hand(),0);const n=events.length;
+  p.update(hand({x:1200,y:540},1.0),20);
+  assert.equal(events.length,n+1);assert.equal(events.at(-1).type,'GRAB_END');
+  const out=[],send=bridgeGestureInput(e=>out.push(e));
+  send({type:'CONTROL_UPDATE',delta:{x:5,y:6}});assert.equal(out.length,0);
+  send({type:'GRAB_START',point:{x:10,y:20}});send({type:'CONTROL_UPDATE',delta:{x:5,y:-6}});
+  assert.deepEqual(out.at(-1),{type:'MOVE',point:{x:15,y:14}});
+  send({type:'GRAB_END'});send({type:'CONTROL_UPDATE',delta:{x:999,y:999}});
+  assert.equal(out.at(-1).type,'RELEASE');
 });

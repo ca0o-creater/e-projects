@@ -53,9 +53,11 @@ export class ActThreeScene extends Container {
  this.moonGlow.alpha=.24+pulse*c.ending.pulseGlow;
  const point=s.point;this.control.clear();this.rod.clear();
  if(['ready','dragging','armed'].includes(s.state)){
+ const target=s.targetCenter;
+ this.control.circle(target.x,target.y,c.control.stableRadius).fill({color:0x91ffbe,alpha:s.inTarget?.16:.04}).stroke({color:0x91ffbe,width:s.inTarget?4:2,alpha:s.inTarget?.9:.4});
  this.rod.moveTo(point.x+c.rod.footOffsetX,c.stage.height).lineTo(point.x,point.y).stroke({color:c.rod.color,width:c.rod.width});
  this.control.circle(point.x,point.y,c.control.radius).fill({color:c.control.stroke,alpha:.12}).stroke({color:c.control.stroke,width:3});
- if(s.hold>0)this.control.moveTo(point.x,point.y-c.control.radius-8).arc(point.x,point.y,c.control.radius+8,-Math.PI/2,-Math.PI/2+Math.min(1,s.hold/c.control.holdSeconds)*Math.PI*2).stroke({color:c.control.stroke,width:5});}
+ if(s.hold>0)this.control.moveTo(point.x,point.y-c.control.radius-8).arc(point.x,point.y,c.control.radius+8,-Math.PI/2,-Math.PI/2+Math.min(1,s.hold/c.control.holdSeconds)*Math.PI*2).stroke({color:0x91ffbe,width:10});}
  this.title.alpha=Math.max(0,1-this.elapsed/c.introSeconds);
  }
  dispose():void{this.ascent.dispose();this.extensionTexture.destroy(false);}

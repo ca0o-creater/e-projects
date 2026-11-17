@@ -1,6 +1,6 @@
 import { gestureConfig as config } from '../config/gesture.config.ts';
 import { mirrorPoint } from './gesture-mapping.ts';
-import type { Landmark } from './pinch-controller.ts';
+import type { Landmark, GestureDiagnostics } from './pinch-controller.ts';
 
 const connections = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],
   [9,13],[13,14],[14,15],[15,16],[13,17],[0,17],[17,18],[18,19],[19,20]];
@@ -44,6 +44,7 @@ export class GesturePreview {
   readonly root=document.createElement('aside');
   readonly canvas=document.createElement('canvas');
   readonly toggle=document.createElement('button');
+  readonly metrics=document.createElement('pre');
   private enabled=false;
   private collapsed=false;
   private readonly events=new AbortController();
@@ -55,6 +56,8 @@ export class GesturePreview {
     const caption=document.createElement('p');caption.textContent='镜像预览 · 绿框内操偶 · D 隐藏';
     this.root.append(this.canvas,caption);stage.append(this.root);
     this.toggle.type='button';this.toggle.setAttribute('aria-controls',this.root.id);panel.append(this.toggle);
+    this.metrics.className='gesture-metrics';this.metrics.setAttribute('aria-label','手势实时诊断');
+    panel.append(this.metrics);this.updateMetrics(null);
     const options={signal:this.events.signal};
     this.toggle.addEventListener('click',()=>this.toggleVisibility(),options);
     window.addEventListener('keydown',event=>{
@@ -69,12 +72,18 @@ export class GesturePreview {
   private toggleVisibility():void {if(this.enabled){this.collapsed=!this.collapsed;this.refresh();}}
   private refresh():void {
     this.root.hidden=!this.enabled||this.collapsed;this.toggle.hidden=!this.enabled;
+    this.metrics.hidden=this.root.hidden;
     this.toggle.textContent=this.collapsed?'显示摄像头预览 (D)':'隐藏摄像头预览 (D)';
     this.toggle.setAttribute('aria-expanded',String(this.enabled&&!this.collapsed));
   }
   draw(video: HTMLVideoElement,landmarks?: readonly Landmark[]):void {
     if(!this.root.hidden)drawGesturePreview(this.canvas,video,landmarks);
   }
+  updateMetrics(data:GestureDiagnostics|null):void {
+    const xy=(p:{x:number;y:number})=>`${p.x.toFixed(1)}, ${p.y.toFixed(1)}`;
+    this.metrics.textContent=data?`4↔8 距离：${data.distance.toFixed(4)}\n捏合：${data.pinched?'是':'否'}  抓取：${data.grabbing?'是':'否'}\n${data.neutralRequired?'等待张开手':`距离 <${config.pinch.close} 抓取 / >${config.pinch.open} 松开`}\n原始映射：${xy(data.raw)}\n滤波后：${xy(data.filtered)}\n死区后：${xy(data.stable)}\n坐标单位：舞台逻辑 px`:'未检测到手 · 等待中\n4↔8 距离：—  抓取：否';
+    if(data)this.metrics.textContent+=data.target?`\n距目标圆心：${data.target.distance.toFixed(1)} px\n容错半径：${data.target.radius} px\n充能：${Math.round(data.target.progress*100)}%`:'\n距目标圆心：—（未捕获停留节点）';
+  }
   clear():void {if(!this.root.hidden)drawGesturePreview(this.canvas,null);}
-  dispose():void {this.events.abort();this.root.remove();this.toggle.remove();}
+  dispose():void {this.events.abort();this.root.remove();this.toggle.remove();this.metrics.remove();}
 }

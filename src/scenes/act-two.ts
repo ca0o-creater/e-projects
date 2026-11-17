@@ -151,12 +151,13 @@ export class ActTwoScene extends Container {
         .circle(p.x,p.y,a.controlRadius+7).stroke({color:c.colors.glow,width:1,alpha:0.35});
       if(s.holdProgress>0) this.control.moveTo(p.x,p.y-a.controlRadius-7)
         .arc(p.x,p.y,a.controlRadius+7,-Math.PI/2,-Math.PI/2+s.holdProgress*Math.PI*2)
-        .stroke({color:'#fff4c2',width:5});
+        .stroke({color:'#91ffbe',width:10});
       const start=s.pointAt(0);
       this.guide.moveTo(start.x,start.y).arc(a.center.x,a.center.y,a.radius,a.startAngle,a.endAngle,a.endAngle<a.startAngle)
         .stroke({color:'#f1ce8c',width:2,alpha:0.3});
-      const end=s.pointAt(1);this.target.circle(end.x,end.y,34)
-        .stroke({color:c.colors.glow,width:2,alpha:0.45});
+      const end=s.targetCenter;this.target.circle(end.x,end.y,a.stableRadius)
+        .fill({color:s.inTarget?'#91ffbe':c.colors.glow,alpha:s.inTarget?0.16:0.04})
+        .stroke({color:s.inTarget?'#91ffbe':c.colors.glow,width:s.inTarget?4:2,alpha:s.inTarget?0.9:0.45});
     }
     this.rods.clear();
     if(this.figure.alpha>0) this.rods.moveTo(c.changE.x+c.rods.bodyFootOffsetX,1080)

@@ -52,6 +52,6 @@ export const scene2Config = {
     // 反射整条弧线，而非只移动控制圈；保留连续角域，跨 ±π 时拖动仍连续。
     startAngle: stageArmAngle(changeArm.startAngle), endAngle: stageArmAngle(changeArm.endAngle),
     grabRadius: 48, controlRadius: 29, targetProgress: 0.9, holdSeconds: 0.4,
-    stillRadius: 8, centerDeadZone: 18, returnSeconds: 0.85 },
+    stableRadius: 60, centerDeadZone: 18, returnSeconds: 0.85 },
   ending: { swallowSeconds: 1.3, riseSeconds: 3, riseHeight: 220 },
 } as const;

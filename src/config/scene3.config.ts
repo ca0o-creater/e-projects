@@ -5,7 +5,7 @@ export const scene3Config={
  watermarkCover:{x:1680,y:1010,width:240,height:70,color:0x172238,alpha:1},
  // scale 为原图骨架的实际缩放，不再乘其他幕的默认 scale；x 锁定腰部主杆。
  character:{x:755,startY:1000,endY:700,startScale:.2,endScale:.8,waist:{x:650,y:790},restProgress:.35},
- control:{radius:32,grabRadius:58,stroke:0xffe8b4,holdSeconds:.4,stillRadius:8,threshold:.95,assistSpeed:.13},
+ control:{radius:32,grabRadius:58,stroke:0xffe8b4,holdSeconds:.4,stableRadius:60,threshold:.95,assistSpeed:.13},
  rod:{color:0x302728,width:4,footOffsetX:40},
  moon:{x:1040,y:230,radius:150,startScale:.55,endScale:1.4,startAlpha:.2,endAlpha:1,color:0xfff2cb,halo:0xb5d9ef},
  ending:{flightSeconds:2.4,pulseSeconds:.8,get duration(){return this.flightSeconds+this.pulseSeconds;},
