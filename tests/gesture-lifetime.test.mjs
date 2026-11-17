@@ -107,7 +107,7 @@ test('UI pointerdown先取消手势；按钮按住期间不许重抓；释放后
   try {
     f.input.bind(e=>f.events.push(e),()=>true,()=>({point:{x:960,y:540},constrain:p=>p}));
     f.choose('gesture');const p=f.input.source.pinch;pinchFrames(p);
-    const button={closest:()=>({})};const down=new Event('pointerdown');
+    const button={closest:selector=>selector==='[data-debug-visibility]'?null:({})};const down=new Event('pointerdown');
     Object.defineProperties(down,{target:{value:button},pointerId:{value:7}});window.dispatchEvent(down);
     assert.deepEqual(f.events.at(-1),{type:'RELEASE',cancelled:true});
     const count=f.events.length;pinchFrames(p,150);assert.equal(f.events.length,count);

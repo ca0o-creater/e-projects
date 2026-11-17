@@ -47,6 +47,7 @@ export class GesturePreview {
   readonly metrics=document.createElement('pre');
   private enabled=false;
   private collapsed=false;
+  private panelVisible=true;
   private readonly events=new AbortController();
 
   constructor(stage: HTMLElement, panel: HTMLElement) {
@@ -69,9 +70,10 @@ export class GesturePreview {
     this.refresh();
   }
   setEnabled(enabled: boolean):void {this.enabled=enabled;this.refresh();}
+  setPanelVisible(visible:boolean):void {this.panelVisible=visible;this.refresh();}
   private toggleVisibility():void {if(this.enabled){this.collapsed=!this.collapsed;this.refresh();}}
   private refresh():void {
-    this.root.hidden=!this.enabled||this.collapsed;this.toggle.hidden=!this.enabled;
+    this.root.hidden=!this.panelVisible||!this.enabled||this.collapsed;this.toggle.hidden=!this.enabled;
     this.metrics.hidden=this.root.hidden;
     this.toggle.textContent=this.collapsed?'显示摄像头预览 (D)':'隐藏摄像头预览 (D)';
     this.toggle.setAttribute('aria-expanded',String(this.enabled&&!this.collapsed));

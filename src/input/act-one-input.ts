@@ -6,6 +6,9 @@ import type { InputSink, StagePoint } from './semantic.ts';
 import type { CaptureGestureTarget } from './gesture-mapping.ts';
 import { GesturePreview } from './gesture-preview.ts';
 
+// Keep presentation preference across scene/fullscreen changes, reset on page reload.
+let debugPanelVisible=false;
+
 /** One camera session, rebindable across scenes. Only one source owns stage input. */
 export class SceneInputAdapter {
   private source?: PointerInputAdapter | GestureInputAdapter;
@@ -33,6 +36,7 @@ export class SceneInputAdapter {
     this.stage = stage; this.canvas = canvas; this.send = send; this.canGrab = canGrab;
     this.captureTarget = captureTarget;
     this.panel.className = 'input-panel'; this.panel.setAttribute('aria-label', '舞台输入模式');
+    this.panel.id='debug-panel';
     const label = document.createElement('label'); label.textContent = '输入方式 ';
     this.mode.setAttribute('aria-label', '输入方式');
     for (const [value, text] of [['pointer','触摸/鼠标替代模式'], ['gesture','摄像头手势（三幕通用）']]) {
@@ -45,6 +49,19 @@ export class SceneInputAdapter {
     this.dot.className = 'gesture-cursor'; this.dot.hidden = true; this.dot.setAttribute('aria-hidden', 'true');
     this.panel.append(label, this.status, this.video); stage.append(this.panel, this.dot);
     this.preview=new GesturePreview(stage,this.panel);
+    const collapse=document.createElement('button');
+    collapse.type='button';collapse.className='debug-collapse';collapse.textContent='收起 · H';
+    collapse.setAttribute('aria-label','收起调试面板（H）');
+    collapse.setAttribute('data-debug-visibility','true');
+    this.panel.append(collapse);
+    collapse.addEventListener('click',()=>this.setPanelVisible(false),{signal:this.events.signal});
+    window.addEventListener('keydown',event=>{
+      if(event.code!=='KeyH'||event.repeat||event.ctrlKey||event.metaKey||event.altKey)return;
+      const target=event.target as HTMLElement|null;
+      if(target?.isContentEditable||['INPUT','TEXTAREA'].includes(target?.tagName??''))return;
+      event.preventDefault();this.setPanelVisible(!debugPanelVisible);
+    },{signal:this.events.signal});
+    this.setPanelVisible(debugPanelVisible);
     this.mode.addEventListener('change', () => {
       if (this.mode.value === 'gesture') void this.useGesture(); else this.usePointer();
     }, { signal: this.events.signal });
@@ -63,7 +80,15 @@ export class SceneInputAdapter {
   }
 
   private isUI(target:EventTarget|null):boolean {
+    if((target as Element|null)?.closest?.('[data-debug-visibility]'))return false;
     return Boolean((target as Element|null)?.closest?.('button,select,input,a,[role="button"]'));
+  }
+
+  private setPanelVisible(visible:boolean):void {
+    debugPanelVisible=visible;
+    if(!visible && this.panel.contains?.(document.activeElement)) (document.activeElement as HTMLElement)?.blur?.();
+    this.panel.hidden=!visible;
+    this.preview.setPanelVisible(visible);
   }
 
   bind(send:InputSink,canGrab:(p:StagePoint)=>boolean,captureTarget:CaptureGestureTarget):void {
