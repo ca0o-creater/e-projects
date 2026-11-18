@@ -74,6 +74,7 @@ body {
 .stage-button:active { background: #e4c48f; }
 .stage-button:focus-visible { outline: 3px solid #805e35; outline-offset: 4px; }
 #assist-button { bottom: 4%; right: 4%; }
+/* 文案与位置来自 src/config/prologue.config.ts，由 main.ts 写入，这里只保留通用按钮样式。 */
 #next-button { bottom: 3%; left: 50%; transform: translateX(-50%); }
 
 #entrance {

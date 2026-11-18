@@ -4,13 +4,13 @@ import { rigConfig, armLengths } from './rig.config.ts';
 const title = actOneConfig.title;
 const titleEnd = title.delay + title.enter + title.hold + title.exit;
 
-// 人物入场时间随题字时长自动顺延，确保题字完全消失后才登场。
-// 位置为 1920×1080 舞台坐标；局部形状以各关节为原点，角度为弧度。
+// 后羿在第一幕开场即在台上（序章另有独立的行走图），appearAt/fadeDuration 为 0。
+// 西王母仍在题字结束后入场，人物入场时间随题字时长自动顺延。
 export const charactersConfig = {
   ink: '#241b18', shadow: { color: '#40251c', x: 4, y: 9, alpha: 0.34, blur: 4 },
   layers: { houyi: 10, queen: 20, bottle: 30 },
   houyi: {
-    x: 700, y: 920, scale: 1.05, appearAt: titleEnd + 0.3, fadeDuration: 1.4,
+    x: 700, y: 920, scale: 1.05, appearAt: 0, fadeDuration: 0,
     torso: { x: 0, y: -235, z: 10 }, head: { x: 8, y: -315, z: 20 },
     shoulder: { x: (rigConfig.houyi.shoulder.x-rigConfig.houyi.origin.x)*rigConfig.houyi.scale,
       y: (rigConfig.houyi.shoulder.y-rigConfig.houyi.origin.y)*rigConfig.houyi.scale, z: 30 },

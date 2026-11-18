@@ -4,11 +4,13 @@ import { actOneConfig } from './config/act-one';
 import { actOneIntroEnd } from './config/characters';
 import { ActOneScene } from './scenes/act-one';
 import { loadRigAssets } from './characters/image-rigs';
+import { loadHouyiWalk } from './characters/houyi-walk';
 import { PointerInputAdapter } from './input/pointer-adapter';
 import { ActTwoScene } from './scenes/act-two';
 import { actTwoConfig } from './config/act-two';
 import { loadActTwoAssets } from './characters/fengmeng';
 import { destroyScene, SceneLifetime } from './scenes/scene-lifetime';
+import { prologueConfig } from './config/prologue.config';
 
 const stage = document.querySelector<HTMLElement>('#stage')!;
 const viewportSize = document.querySelector<HTMLDivElement>('#viewport-size')!;
@@ -18,6 +20,13 @@ const status = document.querySelector<HTMLParagraphElement>('#entrance-status')!
 const handoffStatus = document.querySelector<HTMLParagraphElement>('#handoff-status')!;
 const assistButton = document.querySelector<HTMLButtonElement>('#assist-button')!;
 const nextButton = document.querySelector<HTMLButtonElement>('#next-button')!;
+const skipButton = document.querySelector<HTMLButtonElement>('#skip-prologue')!;
+// 跳过按钮的文案、无障碍标签与位置全部来自序章配置，不在 HTML/CSS 中重复。
+skipButton.textContent = prologueConfig.skip.label;
+skipButton.setAttribute('aria-label', prologueConfig.skip.ariaLabel);
+skipButton.style.right = prologueConfig.skip.right;
+skipButton.style.bottom = prologueConfig.skip.bottom;
+
 const DESIGN_WIDTH = actOneConfig.stage.width;
 const DESIGN_HEIGHT = actOneConfig.stage.height;
 let app: Application | undefined;
@@ -30,7 +39,7 @@ const events = new AbortController();
 const eventOptions = { signal: events.signal };
 const params = new URLSearchParams(location.search);
 const previewScene = params.get('preview');
-const scenePreview = import.meta.env.DEV && ['act-one','act-two'].includes(previewScene ?? '');
+const scenePreview = import.meta.env.DEV && ['act-one','act-two','prologue'].includes(previewScene ?? '');
 const time = params.get('time');
 const previewTime = scenePreview && time !== null && Number.isFinite(Number(time)) ? Math.max(0, Number(time)) : null;
 
@@ -99,8 +108,9 @@ function renderSceneUI():void {
   if(handoffStatus.textContent!==controller.message) handoffStatus.textContent=controller.message;
   assistButton.hidden=!(scene instanceof ActOneScene && ['ready','dragging','snapped','returning'].includes(controller.state));
   nextButton.hidden=!(scene instanceof ActOneScene && controller.state==='complete');
+  skipButton.hidden=!(scene instanceof ActOneScene && scene.showSkipButton);
   stage.dataset.scene=scene instanceof ActOneScene?'act-one':'act-two';
-  stage.dataset.sceneState=scene instanceof ActTwoScene?scene.sceneState:'scene1';
+  stage.dataset.sceneState=scene.sceneState;
   stage.dataset.interactionState=controller.state;
   stage.dataset.handoffState=scene instanceof ActOneScene?controller.state:'';
 }
@@ -153,15 +163,23 @@ async function main(): Promise<void> {
 
   const directActTwo=scenePreview && previewScene==='act-two';
   await loadActTwoAssets();
-  if(!directActTwo) await loadRigAssets();
+  if(!directActTwo) { await loadRigAssets(); await loadHouyiWalk(); }
   const scene = directActTwo?new ActTwoScene():new ActOneScene();
-  if (previewTime !== null) scene.seek(previewTime);
-  // 开发时跳过入场但继续播放，便于重复检查交接；正式构建不启用。
+  if (previewTime !== null) {
+    // 开发静帧：?preview=prologue&time=N 冻结在序章第 N 秒，其余预览冻结在第一幕第 N 秒。
+    if (previewScene === 'prologue' && scene instanceof ActOneScene) scene.seekPrologue(previewTime);
+    else scene.seek(previewTime);
+  }
+  // 开发时跳过入场但继续播放，便于重复检查交接；正式构建不启用。序章同样会被跳过。
   if (scenePreview && params.get('skipIntro') === '1') scene.seek(directActTwo?actTwoConfig.intro.duration:actOneIntroEnd);
   app.canvas.setAttribute('role', 'img');
   stage.appendChild(app.canvas);
   mountScene(scene);
   app.ticker.add(renderSceneUI);
+  skipButton.addEventListener('click', () => {
+    if (currentScene instanceof ActOneScene) currentScene.skipPrologue();
+    renderSceneUI();
+  }, eventOptions);
   assistButton.addEventListener('click', () => {
     input?.cancel();
     if(currentScene instanceof ActOneScene) currentScene.handoff.assist();

@@ -8,8 +8,15 @@ import { HandoffController } from '../interaction/handoff';
 import { rigConfig, armLengths } from '../config/rig.config';
 import { solveArmIK, dampAngle } from '../characters/ik';
 import { puppetLook } from '../config/puppet-look';
+import { prologueConfig } from '../config/prologue.config';
+import { prologueAt, houyiWalkAt, prologueBlackout, prologueFadeIn } from './prologue-timeline.ts';
+import { createHouyiWalk } from '../characters/houyi-walk';
 
 const { width, height } = config.stage;
+
+// 细粒度动画相位：序章 → 第一幕开场/题字 → 人物入场 → 赐药。
+// 对外状态由 sceneState 提供：prologue → scene1_intro → scene1_interaction → scene1_ending → scene1_complete。
+export type ActOnePhase = 'prologue' | 'establishing' | 'title-enter' | 'title-hold' | 'title-exit' | 'characters-enter' | 'awaiting-elixir';
 
 function softShadow(): Container {
   const shadow = new Container();
@@ -45,8 +52,10 @@ function roughRidge(points: number[]): number[] {
 
 export class ActOneScene extends Container {
   readonly sceneId = 'houyi-gets-elixir';
-  phase = 'establishing';
+  phase: ActOnePhase = 'establishing';
   private elapsed = 0;
+  private prologueTime = 0;
+  private prologueIndex = -1;
   private readonly glow = new Container();
   private readonly cloudLayers: Container[] = [];
   private readonly inscription = new Container();
@@ -61,6 +70,31 @@ export class ActOneScene extends Container {
   private detached = false;
   private readonly rodLayer = new Container({label:'幕后操纵杆'});
   private readonly rods = [this.makeRodPair(),this.makeRodPair()];
+  // 序章层压在最上面：山门剪影、行走的后羿、旁白与托底；第一幕骨架在序章里全部隐藏。
+  private readonly prologueLayer = new Container({ label: '序章 · 山门与旁白' });
+  private readonly walk = createHouyiWalk();
+  private readonly gate = new Graphics();
+  private readonly prologueBackdrop = new Graphics();
+  private readonly blackout = new Graphics();
+  private fadeFromBlack = false;
+  private readonly prologueText = new Text({ text: '', style: {
+    fontFamily: [...prologueConfig.subtitle.fontFamily],
+    fontSize: prologueConfig.subtitle.fontSize,
+    fill: prologueConfig.colors.text,
+    align: 'center',
+    lineHeight: prologueConfig.subtitle.lineHeight,
+    letterSpacing: prologueConfig.subtitle.letterSpacing,
+    wordWrap: true,
+    wordWrapWidth: prologueConfig.subtitle.maxWidth,
+    breakWords: true,
+    dropShadow: {
+      color: prologueConfig.colors.shadow,
+      alpha: prologueConfig.subtitle.shadow.alpha,
+      blur: prologueConfig.subtitle.shadow.blur,
+      distance: prologueConfig.subtitle.shadow.distance,
+      angle: prologueConfig.subtitle.shadow.angle,
+    },
+  } });
 
   private makeRodPair() {
     const group=new Container(),shadow=new Graphics(),ink=new Graphics();
@@ -113,13 +147,22 @@ export class ActOneScene extends Container {
       this.trail.push({ graphic, age: handoffConfig.trail.lifetime });
     }
     this.interactionLayer.addChild(this.success);
+    this.drawPrologue();
     this.seek(0);
+    this.enterPrologue();
     this.filterArea=new Rectangle(0,0,width,height);
     this.filters=[new NoiseFilter({...config.grain})];
   }
 
   readonly update = (ticker: Ticker): void => {
     const dt = Math.min(ticker.deltaMS / 1000, 0.05);
+    if (this.phase === 'prologue') {
+      // 序章期间只推进旁白时间：不推进接药状态机，handoff 始终停在 intro，无法抓取。
+      const next = this.prologueTime + dt;
+      if (next >= prologueConfig.total) this.finishPrologue();
+      else this.renderPrologue(next);
+      return;
+    }
     this.seek(this.elapsed + dt);
     this.updateHandoff(dt);
   };
@@ -196,17 +239,16 @@ export class ActOneScene extends Container {
     this.updateRods();
   }
 
-  // 呼吸、云和题字共用播放时间；退出全屏时 ticker 停止，重新进入从原处继续。
+  // 题字与人物按第一幕自己的时间播放；云、暖光与后羿呼吸由 updateAmbient 用连续时钟推进。
+  // 退出全屏时 ticker 停止，重新进入从原处继续。
   seek(seconds: number): void {
+    this.exitPrologue();
     this.elapsed = Math.max(0, seconds);
-    this.cloudLayers.forEach((layer, index) => {
-      layer.x = -((this.elapsed * config.clouds[index].speed) % width);
-    });
-    this.glow.alpha = config.light.alpha + config.light.breathAmplitude
-      * Math.sin(this.elapsed * Math.PI * 2 / config.light.breathPeriod);
     const title = config.title;
     const clamp = (t: number) => Math.max(0, Math.min(1, t));
-    const houyiProgress = clamp((this.elapsed - actors.houyi.appearAt) / actors.houyi.fadeDuration);
+    // 后羿从序章起就在台上；appearAt/fadeDuration 为 0 时不再淡入，避免切幕时消失或瞬移。
+    const houyiProgress = actors.houyi.fadeDuration > 0
+      ? clamp((this.elapsed - actors.houyi.appearAt) / actors.houyi.fadeDuration) : 1;
     this.houyi.alpha = houyiProgress;
     const queenProgress = clamp((this.elapsed - actors.queen.appearAt) / actors.queen.enterDuration);
     this.queen.alpha = queenProgress;
@@ -229,7 +271,152 @@ export class ActOneScene extends Container {
       : this.elapsed < actOneIntroEnd ? 'characters-enter' : 'awaiting-elixir';
     if (this.phase === 'awaiting-elixir') this.handoff.prepare();
     if (this.handoff.state === 'intro') this.queen.setOfferingPose(handoffConfig.offering.startAngle);
+    // 从序章切过来时先保持全黑，再在 0.5 秒内亮起，避免硬切。
+    if (this.fadeFromBlack) {
+      this.blackout.alpha = prologueFadeIn(this.elapsed);
+      if (this.elapsed >= prologueConfig.transition.fadeFromBlack) this.fadeFromBlack = false;
+    } else {
+      this.blackout.alpha = 0;
+    }
+    this.updateAmbient();
     this.updateRods();
+  }
+
+  // 云、暖光和后羿呼吸共用一条连续时钟：序章（含暗场）与第一幕时间首尾相接。
+  private get stageTime(): number {
+    return this.phase === 'prologue' ? this.prologueTime : prologueConfig.total + this.elapsed;
+  }
+
+  private updateAmbient(): void {
+    const t = this.stageTime;
+    this.cloudLayers.forEach((layer, index) => {
+      layer.x = -((t * config.clouds[index].speed) % width);
+    });
+    this.glow.alpha = config.light.alpha + config.light.breathAmplitude
+      * Math.sin(t * Math.PI * 2 / config.light.breathPeriod);
+    const breath = prologueConfig.houyi.breath;
+    this.houyi.y = actors.houyi.y + Math.sin(t * Math.PI * 2 / breath.period) * breath.amplitude;
+  }
+
+  // 序章与第一幕的衔接：点击“跳过序章”或旁白播完都走 finishPrologue。
+  skipPrologue(): void {
+    if (this.phase === 'prologue') this.finishPrologue();
+  }
+
+  // 开发静帧：把序章冻结在指定秒数；超出总时长则直接进入第一幕。
+  seekPrologue(seconds: number): void {
+    if (seconds >= prologueConfig.total) { this.seek(0); return; }
+    this.phase = 'prologue';
+    this.prologueIndex = -1;
+    this.prologueLayer.visible = true;
+    this.renderPrologue(Math.max(0, seconds));
+  }
+
+  // 供 DOM 按钮显示/隐藏；暗场开始后不再显示。
+  get showSkipButton(): boolean {
+    return this.phase === 'prologue' && this.prologueTime < prologueConfig.duration
+      && this.prologueTime >= prologueConfig.skip.appearAt;
+  }
+
+  // 对外状态名与第二幕的 scene2_* 对齐，便于样式和自动化检查读取。
+  get sceneState(): string {
+    if (this.phase === 'prologue') return 'prologue';
+    if (this.handoff.state === 'intro') return 'scene1_intro';
+    if (this.handoff.state === 'complete') return 'scene1_complete';
+    return this.handoff.state === 'completing' ? 'scene1_ending' : 'scene1_interaction';
+  }
+
+  private enterPrologue(): void {
+    this.phase = 'prologue';
+    this.prologueTime = 0;
+    this.prologueIndex = -1;
+    this.prologueLayer.visible = true;
+    this.renderPrologue(0);
+  }
+
+  // 旁白与暗场都结束：带着全黑遮罩进入第一幕，随后由 seek 在 0.5 秒内亮起。
+  private finishPrologue(): void {
+    this.fadeFromBlack = true;
+    this.seek(0);
+  }
+
+  private exitPrologue(): void {
+    if (this.phase !== 'prologue') return;
+    this.prologueTime = prologueConfig.total;
+    this.prologueLayer.visible = false;
+    this.prologueText.alpha = 0;
+  }
+
+  private renderPrologue(seconds: number): void {
+    const frame = prologueAt(seconds);
+    this.prologueTime = seconds;
+    this.prologueBackdrop.alpha = frame.backdropAlpha;
+    if (frame.index !== this.prologueIndex) {
+      this.prologueIndex = frame.index;
+      this.prologueText.text = frame.text;
+    }
+    this.prologueText.alpha = frame.alpha;
+    // 行走：旁白期间从画外左下角走向山门，同时缩小、变淡并带轻微起伏。
+    const walk = houyiWalkAt(seconds);
+    this.walk.position.set(walk.x, walk.y);
+    this.walk.scale.set(walk.scale);
+    this.walk.alpha = walk.alpha;
+    // 第一幕的人物骨架在序章里完全隐藏，切幕后由暗场遮住替换过程。
+    this.houyi.alpha = 0;
+    this.blackout.alpha = prologueBlackout(seconds);
+    this.updateAmbient();
+    this.updateRods();
+  }
+
+  private drawPrologue(): void {
+    const c = prologueConfig, b = c.subtitle.backdrop;
+    const withAlpha = (alpha: number) =>
+      `${c.colors.backdrop}${Math.round(Math.max(0, Math.min(1, alpha)) * 255).toString(16).padStart(2, '0')}`;
+    const backdrop = new FillGradient({ type: 'radial', center: { x: 0.5, y: 0.5 },
+      outerRadius: 0.5, textureSize: 256,
+      colorStops: [
+        { offset: 0, color: withAlpha(b.alpha) },
+        { offset: b.falloff, color: withAlpha(b.alpha * 0.55) },
+        { offset: 1, color: withAlpha(0) },
+      ] });
+    this.prologueBackdrop.ellipse(c.subtitle.x, c.subtitle.y, b.width / 2, b.height / 2).fill(backdrop);
+    this.drawGate();
+    this.prologueText.anchor.set(0.5);
+    this.prologueText.position.set(c.subtitle.x, c.subtitle.y);
+    this.prologueText.alpha = 0;
+    // 由远及近：山门在下、行走的后羿在中、旁白托底与文字在上。
+    this.prologueLayer.addChild(this.gate, this.walk, this.prologueBackdrop, this.prologueText);
+    this.addChild(this.prologueLayer);
+    // 暗场层始终压在最上面，切换第一幕时先全黑再亮起。
+    this.blackout.rect(0, 0, width, height).fill('#000000');
+    this.blackout.alpha = 0;
+    this.addChild(this.blackout);
+  }
+
+  // 山门剪影：屋顶、匾额、横梁与两根立柱，门洞留空让人物站进去。
+  private drawGate(): void {
+    const g = this.gate, c = prologueConfig.gate;
+    const k = c.width / 360, h = c.height, paint = { color: c.color, alpha: c.alpha };
+    g.position.set(c.x, c.baseY);
+    // 地面阴影：让远处的山门有落地感，不再是悬空的剪影。
+    const shadow = new FillGradient({ type: 'radial', center: { x: 0.5, y: 0.5 },
+      outerRadius: 0.5, textureSize: 128,
+      colorStops: [{ offset: 0, color: `${c.color}44` }, { offset: 1, color: `${c.color}00` }] });
+    g.ellipse(0, 4, 250 * k, 22).fill(shadow);
+    // 屋顶：两端上翘的瓦檐
+    g.moveTo(-205 * k, -h + 78 * k)
+      .quadraticCurveTo(-150 * k, -h + 30 * k, -70 * k, -h + 12 * k)
+      .quadraticCurveTo(0, -h - 4 * k, 70 * k, -h + 12 * k)
+      .quadraticCurveTo(150 * k, -h + 30 * k, 205 * k, -h + 78 * k)
+      .lineTo(150 * k, -h + 56 * k)
+      .quadraticCurveTo(0, -h + 44 * k, -150 * k, -h + 56 * k)
+      .closePath().fill(paint);
+    g.rect(-176 * k, -h + 78 * k, 352 * k, 14 * k).fill(paint);
+    g.roundRect(-72 * k, -h + 106 * k, 144 * k, 44 * k, 8 * k).fill(paint);
+    g.rect(-190 * k, -h + 162 * k, 380 * k, 18 * k).fill(paint);
+    g.rect(-168 * k, -h + 172 * k, 52 * k, h - 172 * k).fill(paint);
+    g.rect(116 * k, -h + 172 * k, 52 * k, h - 172 * k).fill(paint);
+    g.rect(-210 * k, -10, 420 * k, 10).fill(paint);
   }
 
   private drawPaper(): void {
