@@ -27,7 +27,7 @@ test('方向映射约束于固定圆弧，半途松手平滑返回，之后可�
 test('面部目标区必须按住停稳满400ms，提示后松手才成功，月宫事件仅一次',()=>{
   const {s,count}=setup();grab(s);move(s,1);s.update(.399);
   assert.equal(s.state,'dragging');assert.equal(count(),0);
-  s.update(.001);assert.equal(s.state,'armed');assert.equal(s.message,'可以松开');
+  s.update(.001);assert.equal(s.state,'armed');assert.equal(s.message,'已送达，请松手！');
   s.update(2);assert.equal(count(),0); // 一直按住不能自动吞药
   s.input({type:'RELEASE'});assert.equal(s.state,'swallowing');
   s.update(c.ending.swallowSeconds+c.ending.riseSeconds);
@@ -35,19 +35,17 @@ test('面部目标区必须按住停稳满400ms，提示后松手才成功，月
   s.input({type:'RELEASE'});s.update(20);assert.equal(count(),1);
 });
 test('目标区不足400ms松手、目标区外停留均失败',()=>{
-  for(const [progress,time] of [[1,.399],[.89,4]]) {
+  for(const [progress,time] of [[1,.399],[.1,4]]) {
     const {s,count}=setup();grab(s);move(s,progress);s.update(time);s.input({type:'RELEASE'});
     assert.equal(s.state,'returning');s.update(10);assert.equal(count(),0);
   }
 });
-test('目标区内持续移动重置计时；小幅抖动允许，累计漂移超容差重新计时',()=>{
-  const {s}=setup();grab(s);move(s,1);s.update(.3);
-  const p=s.point;
-  s.input({type:'MOVE',point:{x:p.x+3,y:p.y}});s.update(.05);
-  assert.ok(s.holdElapsed>.3);
-  s.input({type:'MOVE',point:{x:p.x,y:p.y-12}});
-  assert.equal(s.holdElapsed,0);s.update(.399);assert.equal(s.state,'dragging');
-  s.update(.001);assert.equal(s.state,'armed');
+test('固定60px圆内任意抖动不中断400ms计时，完全出圈才清零',()=>{
+  const {s}=setup();grab(s);move(s,1);s.update(.2);const p=s.targetCenter;
+  for(const dx of [40,-40,55,-55]){s.input({type:'MOVE',point:{x:p.x+dx,y:p.y}});s.update(.05);}
+  assert.equal(s.state,'armed');assert.ok(s.holdElapsed>=.399);
+  s.input({type:'MOVE',point:{x:p.x+61,y:p.y}});assert.equal(s.state,'dragging');assert.equal(s.holdElapsed,0);
+  s.input({type:'MOVE',point:p});s.update(.399);assert.equal(s.state,'dragging');s.update(.001);assert.equal(s.state,'armed');
 });
 test('提示可松开后离开目标区会撤销资格，重新进入需再次停留',()=>{
   const {s}=setup();grab(s);move(s,1);s.update(.4);move(s,.5);

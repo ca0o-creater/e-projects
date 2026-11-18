@@ -31,7 +31,7 @@ export class HandoffController {
     switch (this.state) {
       case 'intro': return '';
       case 'snapped': return '已接住，可以松手了';
-      case 'returning': return '请重新尝试';
+      case 'returning': return this.retry?'请重新尝试':'已暂停，药瓶正在复位';
       case 'completing': return '交接成功';
       case 'complete': return '凡间地点已解锁';
       default: return this.retry ? '请重新尝试' : '拖动发光的药瓶，交给后羿';
@@ -65,7 +65,7 @@ export class HandoffController {
     } else if (event.type === 'RELEASE') {
       if (this.state === 'snapped' && !event.cancelled) this.transition('completing');
       else if (this.state === 'dragging' || this.state === 'snapped') {
-        this.retry = true;
+        this.retry = !event.cancelled;
         this.transition('returning');
       }
     }
