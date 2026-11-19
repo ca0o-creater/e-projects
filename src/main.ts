@@ -1,8 +1,14 @@
+<<<<<<< Updated upstream
 import {ActThreeScene} from './scenes/act-three';
 import {scene3Config} from './config/scene3.config';
 import {HoldButtonAdapter} from './input/hold-button';
 import {EndingFilm} from './ending-film';
 import { Application } from 'pixi.js';
+=======
+import { Application } from 'pixi.js';
+import { actOneConfig } from './config/act-one';
+import { ActOneScene } from './scenes/act-one';
+>>>>>>> Stashed changes
 import './style.css';
 import { actOneConfig } from './config/act-one';
 import { actOneIntroEnd } from './config/characters';
@@ -25,6 +31,7 @@ const viewportSize = document.querySelector<HTMLDivElement>('#viewport-size')!;
 const entrance = document.querySelector<HTMLElement>('#entrance')!;
 const enterButton = document.querySelector<HTMLButtonElement>('#enter-button')!;
 const status = document.querySelector<HTMLParagraphElement>('#entrance-status')!;
+<<<<<<< Updated upstream
 const handoffStatus = document.querySelector<HTMLParagraphElement>('#handoff-status')!;
 const assistButton = document.querySelector<HTMLButtonElement>('#assist-button')!;
 const nextButton = document.querySelector<HTMLButtonElement>('#next-button')!;
@@ -56,6 +63,20 @@ const previewScene = params.get('preview');
 const scenePreview = import.meta.env.DEV && ['prologue','act-one','act-two','act-three'].includes(previewScene ?? '');
 const time = params.get('time');
 const previewTime = scenePreview && time !== null && Number.isFinite(Number(time)) ? Math.max(0, Number(time)) : null;
+=======
+const DESIGN_WIDTH = actOneConfig.stage.width;
+const DESIGN_HEIGHT = actOneConfig.stage.height;
+document.documentElement.style.setProperty('--curtain-color', actOneConfig.colors.curtain);
+let app: Application | undefined;
+let ready = false;
+let entering = false;
+// 本地美术调试入口；生产构建中不启用，正常访问仍须点击进入全屏。
+const scenePreview = import.meta.env.DEV
+  && new URLSearchParams(window.location.search).get('preview') === 'act-one';
+const previewTimeParam = new URLSearchParams(window.location.search).get('time');
+const previewTime = scenePreview && previewTimeParam !== null
+  && Number.isFinite(Number(previewTimeParam)) ? Math.max(0, Number(previewTimeParam)) : null;
+>>>>>>> Stashed changes
 
 function resize(): void {
   const width = window.innerWidth;
@@ -72,8 +93,14 @@ function syncFullscreen(): void {
   stage.hidden = !active;
   entrance.hidden = active;
   resize();
+<<<<<<< Updated upstream
   if (!ready) return;
   if (active && !document.hidden && previewTime === null && !['video','ending'].includes(endingFilm?.phase??'')) {
+=======
+  // init() 完成前，PixiJS 的 ticker 插件尚未提供 start/stop。
+  if (!ready) return;
+  if (active && !document.hidden && previewTime === null) {
+>>>>>>> Stashed changes
     app?.start();
   } else {
     input?.cancel();
@@ -83,8 +110,13 @@ function syncFullscreen(): void {
 }
 
 resize();
+<<<<<<< Updated upstream
 window.addEventListener('resize', resize, eventOptions);
 document.addEventListener('visibilitychange', syncFullscreen, eventOptions);
+=======
+window.addEventListener('resize', resize);
+document.addEventListener('visibilitychange', syncFullscreen);
+>>>>>>> Stashed changes
 document.addEventListener('fullscreenchange', () => {
   syncFullscreen();
   if (!document.fullscreenElement && ready) {
@@ -206,6 +238,7 @@ async function main(): Promise<void> {
     autoStart: false,
   });
 
+<<<<<<< Updated upstream
   const directActTwo=scenePreview && previewScene==='act-two';
   await loadActTwoAssets();
   await Assets.load(scene3Config.background.url);
@@ -228,6 +261,14 @@ async function main(): Promise<void> {
     if(scene instanceof ActTwoScene){scene.seek(actTwoConfig.intro.duration);scene.swallow.input({type:'GRAB',point:scene.swallow.point});scene.swallow.input({type:'MOVE',point:scene.swallow.pointAt(1)});for(let i=0;i<25;i++)scene.update({deltaMS:1000/60} as import('pixi.js').Ticker);scene.swallow.input({type:'RELEASE'});for(let i=0;i<300;i++)scene.update({deltaMS:1000/60} as import('pixi.js').Ticker);}
   }
   app.canvas.setAttribute('role', 'img');
+=======
+  const scene = new ActOneScene();
+  if (previewTime !== null) scene.seek(previewTime);
+  app.stage.addChild(scene);
+  app.ticker.add(scene.update);
+  app.canvas.setAttribute('role', 'img');
+  app.canvas.setAttribute('aria-label', '第一幕：后羿得药。昆仑山门，云层缓缓飘动，山峦立于幕前。');
+>>>>>>> Stashed changes
   stage.appendChild(app.canvas);
   mountScene(scene);
   app.ticker.add(renderSceneUI);

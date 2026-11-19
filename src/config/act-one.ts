@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 // 坐标/速度：1920×1080 逻辑像素、像素/秒；时间：秒。
 export const actOneConfig = {
   stage: { width: 1920, height: 1080 },
@@ -21,4 +22,39 @@ export const actOneConfig = {
   ],
   title: { text: '昆仑山门，后羿求药', fontFamily: ['STKaiti', 'KaiTi', 'FangSong', 'serif'],
     fontSize: 72, startY: -130, endY: 350, delay: 1.2, enter: 2.8, hold: 2, exit: 1.8 },
+=======
+// 坐标为舞台逻辑像素，速度为逻辑像素/秒，时间为秒。
+export const actOneConfig = {
+  stage: { width: 1920, height: 1080 },
+  colors: {
+    curtain: '#352218',
+    background: '#745535',
+    lamplight: '#edc887',
+    frame: '#492a22',
+    gold: '#c29a5e',
+    distantMountain: '#554c3d',
+    mountain: '#302d29',
+    ground: '#24231f',
+    title: '#ffe5ad',
+    titleShadow: '#302218',
+    seal: '#864432',
+  },
+  // 按绘制顺序由底层到顶层：底层最慢，顶层最快。
+  clouds: [
+    { speed: 8, color: '#eee9db', alpha: 0.15, y: 280, scale: 1.0 },
+    { speed: 18, color: '#f5eee0', alpha: 0.23, y: 460, scale: 1.35 },
+    { speed: 32, color: '#fff6e4', alpha: 0.30, y: 680, scale: 1.7 },
+  ],
+  title: {
+    text: '昆仑山门，后羿求药',
+    fontFamily: ['STKaiti', 'KaiTi', 'FangSong', 'serif'],
+    fontSize: 76,
+    startY: -130,
+    endY: 330,
+    delay: 1.2, // 先呈现云山，再落下题字。
+    enter: 2.8,
+    hold: 2,
+    exit: 1.8,
+  },
+>>>>>>> Stashed changes
 } as const;
