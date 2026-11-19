@@ -1,4 +1,3 @@
-<<<<<<< Updated upstream
 import { BlurFilter, Container, FillGradient, Graphics, NoiseFilter, Rectangle, Text, type Ticker } from 'pixi.js';
 import { actOneConfig as config } from '../config/act-one';
 import { charactersConfig as actors, actOneIntroEnd } from '../config/characters';
@@ -51,18 +50,10 @@ function roughRidge(points: number[]): number[] {
   return result;
 }
 
-=======
-import { Container, Graphics, Text, type Ticker } from 'pixi.js';
-import { actOneConfig as config } from '../config/act-one';
-import { cloudOffset, sampleTitle, type ActOnePhase } from './act-one-timeline';
-
-/** 第一幕：云山布景与入场题字。后续角色可以放入独立的表演层。 */
->>>>>>> Stashed changes
 export class ActOneScene extends Container {
   readonly sceneId = 'houyi-gets-elixir';
   phase: ActOnePhase = 'establishing';
   private elapsed = 0;
-<<<<<<< Updated upstream
   private prologueTime = 0;
   private prologueIndex = -1;
   private readonly glow = new Container();
@@ -132,16 +123,11 @@ export class ActOneScene extends Container {
       }
     });
   }
-=======
-  private readonly cloudLayers: Container[] = [];
-  private readonly inscription = new Container();
->>>>>>> Stashed changes
 
   constructor() {
     super();
     this.label = '第一幕 · 后羿得药';
     this.eventMode = 'none';
-<<<<<<< Updated upstream
     this.drawPaper();
     this.drawMountains();
     this.drawClouds();
@@ -547,151 +533,14 @@ export class ActOneScene extends Container {
     const mark = new Text({ text: '壹', style: { fontFamily: [...title.fontFamily], fontSize: 28, fill: '#ffe5ad' } });
     mark.anchor.set(0.5); mark.y = 99;
     this.inscription.addChild(ornament, text, seal, mark);
-=======
-    this.drawBackdrop();
-    this.drawMountains(true);
-    this.drawClouds();
-    this.drawMountains(false);
-    this.drawInscription();
-    this.drawFrame();
-    this.applyTimeline();
-  }
-
-  // 和 Application 共用 ticker，退出全屏停止 ticker 后，云与题字都停在原处。
-  readonly update = (ticker: Ticker): void => {
-    this.seek(this.elapsed + ticker.deltaMS / 1000);
-  };
-
-  /** 支持本地美术预览定位时间；常规播放由 ticker 调用。 */
-  seek(seconds: number): void {
-    this.elapsed = Math.max(0, seconds);
-    this.cloudLayers.forEach((layer, index) => {
-      layer.x = cloudOffset(this.elapsed, config.clouds[index].speed, config.stage.width);
-    });
-    this.applyTimeline();
-  }
-
-  private applyTimeline(): void {
-    const state = sampleTitle(this.elapsed, config.title);
-    this.phase = state.phase;
-    this.inscription.y = config.title.startY
-      + (config.title.endY - config.title.startY) * state.progress;
-    this.inscription.alpha = state.alpha;
-    this.inscription.visible = state.alpha > 0;
-  }
-
-  private drawBackdrop(): void {
-    const { width, height } = config.stage;
-    const backdrop = new Graphics().rect(0, 0, width, height).fill(config.colors.background);
-    // 叠加低透明度椭圆，模拟幕布后方的暖色灯光。
-    for (let i = 0; i < 18; i++) {
-      backdrop.ellipse(width / 2, height * 0.46, 1100 - i * 35, 760 - i * 23)
-        .fill({ color: config.colors.lamplight, alpha: 0.025 });
-    }
-    // 稀疏经纬纹只绘制一次，不在每帧重建 Graphics。
-    for (let y = 0; y < height; y += 6) {
-      backdrop.moveTo(0, y).lineTo(width, y).stroke({ color: config.colors.curtain, alpha: 0.045, width: 1 });
-    }
-    this.addChild(backdrop);
-  }
-
-  private drawClouds(): void {
-    for (const settings of config.clouds) {
-      const layer = new Container();
-      layer.label = `云层 ${settings.speed} px/s`;
-      // 相同图案首尾拼接；每次循环只重置父容器位置，没有云朵突然出现。
-      for (const tile of [-1, 0, 1, 2]) {
-        for (let i = 0; i < 3; i++) {
-          const cloud = new Graphics()
-            .ellipse(0, 18, 150, 24)
-            .ellipse(-73, 0, 65, 34)
-            .ellipse(-5, -20, 70, 48)
-            .ellipse(68, 0, 64, 32)
-            .fill(settings.color);
-          cloud.moveTo(-111, 10).bezierCurveTo(-65, -6, -48, 24, -8, 8)
-            .bezierCurveTo(20, -7, 62, -1, 105, 14)
-            .stroke({ color: settings.color, alpha: 0.6, width: 2 });
-          cloud.position.set(tile * config.stage.width + i * 640 + 170, settings.y + (i % 2) * 96);
-          cloud.scale.set(settings.scale * (i === 1 ? 0.78 : 1), settings.scale);
-          cloud.alpha = settings.alpha;
-          layer.addChild(cloud);
-        }
-      }
-      this.cloudLayers.push(layer);
-      this.addChild(layer);
-    }
-  }
-
-  private drawMountains(distant: boolean): void {
-    const { width, height } = config.stage;
-    const mountains = new Graphics();
-    if (distant) {
-      mountains.moveTo(0, 825).lineTo(130, 730).lineTo(215, 752).lineTo(365, 540)
-        .lineTo(430, 620).lineTo(505, 580).lineTo(690, 815).lineTo(910, 735)
-        .lineTo(1060, 830).lineTo(1280, 610).lineTo(1355, 660).lineTo(1490, 480)
-        .lineTo(1590, 630).lineTo(1685, 590).lineTo(1850, 780).lineTo(width, 750)
-        .lineTo(width, height).lineTo(0, height).closePath()
-        .fill({ color: config.colors.distantMountain, alpha: 0.7 });
-    } else {
-      mountains.moveTo(0, 930).lineTo(135, 860).lineTo(250, 900).lineTo(375, 750)
-        .lineTo(455, 800).lineTo(535, 730).lineTo(735, 943).lineTo(950, 910)
-        .lineTo(1070, 950).lineTo(1290, 850).lineTo(1420, 920).lineTo(1610, 730)
-        .lineTo(1700, 825).lineTo(1790, 790).lineTo(width, 910)
-        .lineTo(width, height).lineTo(0, height).closePath().fill(config.colors.mountain);
-      mountains.moveTo(0, 1015).quadraticCurveTo(450, 945, 930, 1015)
-        .quadraticCurveTo(1450, 955, width, 1005).lineTo(width, height)
-        .lineTo(0, height).closePath().fill(config.colors.ground);
-    }
-    this.addChild(mountains);
-  }
-
-  private drawInscription(): void {
-    const { colors, title, stage } = config;
-    this.inscription.x = stage.width / 2;
-    const ornament = new Graphics()
-      .moveTo(-385, -69).lineTo(-48, -69).moveTo(48, -69).lineTo(385, -69)
-      .stroke({ color: colors.gold, width: 2, alpha: 0.85 })
-      .poly([0, -81, 12, -69, 0, -57, -12, -69]).fill(colors.gold)
-      .moveTo(-260, 74).lineTo(260, 74).stroke({ color: colors.gold, width: 2 });
-    const text = new Text({
-      text: title.text,
-      style: {
-        fontFamily: [...title.fontFamily], fontSize: title.fontSize,
-        fill: colors.title, letterSpacing: 8,
-        dropShadow: { color: colors.titleShadow, alpha: 0.7, blur: 3, distance: 4, angle: Math.PI / 2 },
-      },
-    });
-    text.anchor.set(0.5);
-    const seal = new Graphics().roundRect(-24, 95, 48, 48, 3).fill(colors.seal)
-      .roundRect(-20, 99, 40, 40, 2).stroke({ color: colors.gold, width: 1 });
-    const sealText = new Text({ text: '壹', style: { fontFamily: [...title.fontFamily], fontSize: 30, fill: colors.title } });
-    sealText.anchor.set(0.5);
-    sealText.y = 119;
-    this.inscription.addChild(ornament, text, seal, sealText);
->>>>>>> Stashed changes
     this.addChild(this.inscription);
   }
 
   private drawFrame(): void {
-<<<<<<< Updated upstream
     const { frame, gold } = config.colors;
     const border = new Graphics().rect(0, 0, width, 30).rect(0, height - 25, width, 25)
       .rect(0, 0, 28, height).rect(width - 28, 0, 28, height).fill(frame)
       .rect(38, 40, width - 76, height - 77).stroke({ color: gold, alpha: 0.7, width: 2 });
-=======
-    const { width, height } = config.stage;
-    const { frame, gold } = config.colors;
-    const border = new Graphics().rect(0, 0, width, 44).rect(0, height - 30, width, 30)
-      .rect(0, 0, 40, height).rect(width - 40, 0, 40, height).fill(frame)
-      .rect(50, 54, width - 100, height - 96).stroke({ color: gold, alpha: 0.65, width: 2 });
-    // 上沿垂下的小弧边，像皮影戏台的幕帘。
-    for (let x = 40; x < width - 40; x += 115) {
-      border.moveTo(x, 42).quadraticCurveTo(x + 57.5, 102, x + 115, 42)
-        .closePath().fill(frame)
-        .moveTo(x + 8, 46).quadraticCurveTo(x + 57.5, 85, x + 107, 46)
-        .stroke({ color: gold, alpha: 0.5, width: 2 });
-    }
->>>>>>> Stashed changes
     this.addChild(border);
   }
 }
