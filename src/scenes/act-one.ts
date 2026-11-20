@@ -17,6 +17,7 @@ const { width, height } = config.stage;
 // 细粒度动画相位：序章 → 第一幕开场/题字 → 人物入场 → 赐药。
 // 对外状态由 sceneState 提供：prologue → scene1_intro → scene1_interaction → scene1_ending → scene1_complete。
 export type ActOnePhase = 'prologue' | 'establishing' | 'title-enter' | 'title-hold' | 'title-exit' | 'characters-enter' | 'awaiting-elixir';
+export type ProloguePart = 'intro' | 'journey' | 'ending';
 
 function softShadow(): Container {
   const shadow = new Container();
@@ -56,6 +57,8 @@ export class ActOneScene extends Container {
   private elapsed = 0;
   private prologueTime = 0;
   private prologueIndex = -1;
+  private prologuePart: ProloguePart = 'intro';
+  private prologuePartTime = 0;
   private readonly glow = new Container();
   private readonly cloudLayers: Container[] = [];
   private readonly inscription = new Container();
@@ -157,10 +160,9 @@ export class ActOneScene extends Container {
   readonly update = (ticker: Ticker): void => {
     const dt = Math.min(ticker.deltaMS / 1000, 0.05);
     if (this.phase === 'prologue') {
-      // 序章期间只推进旁白时间：不推进接药状态机，handoff 始终停在 intro，无法抓取。
-      const next = this.prologueTime + dt;
-      if (next >= prologueConfig.total) this.finishPrologue();
-      else this.renderPrologue(next);
+      // 序章切段由 AudioManager 的 ended 事件驱动；ticker 只负责当前段画面。
+      this.prologuePartTime += dt;
+      this.renderActivePrologue();
       return;
     }
     this.seek(this.elapsed + dt);
@@ -300,6 +302,28 @@ export class ActOneScene extends Container {
 
   // 序章与第一幕的衔接：点击“跳过序章”或旁白播完都走 finishPrologue。
   skipPrologue(): void {
+    this.completePrologue();
+  }
+
+  restartPrologue(): void {
+    this.enterPrologue();
+  }
+
+  showJourneyPrologue(): void {
+    if (this.phase !== 'prologue') return;
+    this.prologuePart = 'journey';
+    this.prologuePartTime = 0;
+    this.renderActivePrologue();
+  }
+
+  beginPrologueEnding(): void {
+    if (this.phase !== 'prologue') return;
+    this.prologuePart = 'ending';
+    this.prologuePartTime = 0;
+    this.renderActivePrologue();
+  }
+
+  completePrologue(): void {
     if (this.phase === 'prologue') this.finishPrologue();
   }
 
@@ -314,8 +338,11 @@ export class ActOneScene extends Container {
 
   // 供 DOM 按钮显示/隐藏；暗场开始后不再显示。
   get showSkipButton(): boolean {
-    return this.phase === 'prologue' && this.prologueTime < prologueConfig.duration
-      && this.prologueTime >= prologueConfig.skip.appearAt;
+    return this.phase === 'prologue' && this.prologuePartTime >= prologueConfig.skip.appearAt;
+  }
+
+  get isPrologue(): boolean {
+    return this.phase === 'prologue';
   }
 
   // 对外状态名与第二幕的 scene2_* 对齐，便于样式和自动化检查读取。
@@ -330,8 +357,10 @@ export class ActOneScene extends Container {
     this.phase = 'prologue';
     this.prologueTime = 0;
     this.prologueIndex = -1;
+    this.prologuePart = 'intro';
+    this.prologuePartTime = 0;
     this.prologueLayer.visible = true;
-    this.renderPrologue(0);
+    this.renderActivePrologue();
   }
 
   // 旁白与暗场都结束：带着全黑遮罩进入第一幕，随后由 seek 在 0.5 秒内亮起。
@@ -366,6 +395,33 @@ export class ActOneScene extends Container {
     this.blackout.alpha = prologueBlackout(seconds);
     this.updateAmbient();
     this.updateRods();
+  }
+
+  private renderActivePrologue(): void {
+    const subtitle = prologueConfig.subtitle;
+    const stableTextTime = Math.min(this.prologuePartTime, subtitle.in + subtitle.hold);
+    if (this.prologuePart === 'intro') {
+      this.renderPrologue(stableTextTime);
+      const walk = houyiWalkAt(0);
+      this.walk.position.set(walk.x, walk.y);
+      this.walk.scale.set(walk.scale);
+      this.walk.alpha = walk.alpha;
+      this.blackout.alpha = 0;
+      return;
+    }
+
+    // 第二段文字保持可读；跋涉动画完成后停在山门，等待旁白结束。
+    this.renderPrologue(prologueConfig.step + stableTextTime);
+    const walk = houyiWalkAt(this.prologuePart === 'journey'
+      ? Math.min(this.prologuePartTime, prologueConfig.duration)
+      : prologueConfig.duration);
+    this.walk.position.set(walk.x, walk.y);
+    this.walk.scale.set(walk.scale);
+    this.walk.alpha = walk.alpha;
+    this.blackout.alpha = this.prologuePart === 'ending'
+      ? prologueBlackout(prologueConfig.duration + Math.max(0,
+        this.prologuePartTime - (prologueConfig.audio.endingGapMs / 1000 - prologueConfig.transition.fadeToBlack)))
+      : 0;
   }
 
   private drawPrologue(): void {

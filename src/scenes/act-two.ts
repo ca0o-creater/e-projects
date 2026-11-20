@@ -173,8 +173,11 @@ export class ActTwoScene extends Container {
     if(this.swallow.state==='swallowing'&&this.swallow.endingElapsed>=c.ending.swallowSeconds)return '点击天上明月，前往月宫';
     return this.swallow.message;
   }
+  get canNavigateToMoon():boolean {
+    return !this.destroyed && moonExitAt(this.swallow.state,this.swallow.endingElapsed).enabled;
+  }
   private requestMoon():void {
-    if(this.navigating||!moonExitAt(this.swallow.state,this.swallow.endingElapsed).enabled)return;
+    if(this.navigating||!this.canNavigateToMoon)return;
     this.navigating=true;this.moon.eventMode=this.skyHit.eventMode='none';this.emit('navigate-to-moon');
   }
   dispose():void { this.navigating=true;this.moon.removeAllListeners();this.skyHit.removeAllListeners();this.swallow.dispose(); }

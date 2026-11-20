@@ -11,7 +11,7 @@ export const scene3Config={
  ending:{flightSeconds:2.4,pulseSeconds:.8,get duration(){return this.flightSeconds+this.pulseSeconds;},
    shrinkFactor:.8,center:{x:500,y:850},pulseScale:.12,pulseGlow:.7},
  video:{url:'/assets/ending_cry.mp4',targetSeconds:4,startupTimeoutMs:6000,stallTimeoutMs:4000,maxPlaybackMs:30000,
-   fadeMs:700,captionDelayMs:700,buttonsDelayMs:1600,background:'#343b49'},
+   fadeMs:700,captionText:'清冷月宫，相思无尽',captionDelayMs:700,captionVoiceSeconds:3,buttonsDelayMs:1600,background:'#343b49'},
  title:{x:960,y:140,size:52,color:0xffe7be},
  caption:{x:960,y:810,size:46,color:0xe4edf7},
  review:['后羿得药：昆仑求药，完成交接。','嫦娥吞药：逢蒙逼药，嫦娥护药。','奔月相思：嫦娥升入月宫，后羿留在人间。','皮影操演：通过影杆带动关节，借幕布透光呈现人物。'],

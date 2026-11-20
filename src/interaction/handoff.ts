@@ -20,6 +20,12 @@ export class HandoffController {
   private curve: HandoffCurve | null = null;
   private readonly handAt: (progress: number) => StagePoint;
   private readonly onComplete: () => void;
+  private readonly stateListeners = new Set<(state: HandoffState, previous: HandoffState) => void>();
+
+  subscribeState(listener: (state: HandoffState, previous: HandoffState) => void): () => void {
+    this.stateListeners.add(listener);
+    return () => { this.stateListeners.delete(listener); };
+  }
 
   constructor(handAt: (progress: number) => StagePoint, onComplete: () => void) {
     this.handAt = handAt;
@@ -75,7 +81,11 @@ export class HandoffController {
     if (this.curve && ['ready', 'dragging', 'snapped', 'returning'].includes(this.state)) this.transition('completing');
   }
 
-  private transition(state: HandoffState): void { this.state = state; this.clock = 0; this.from = this.progress; }
+  private transition(state: HandoffState): void {
+    const previous = this.state;
+    this.state = state; this.clock = 0; this.from = this.progress;
+    if (state !== previous) for (const listener of this.stateListeners) listener(state, previous);
+  }
 
   update(dt: number): void {
     this.clock += Math.max(0, dt);

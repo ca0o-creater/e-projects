@@ -8,5 +8,6 @@ test('未吞药时明月隐藏，吞药后随飞升淡入；完全显现且剧�
  assert.ok(Math.abs(moonExitAt('swallowing',(start+end)/2).alpha-.5)<1e-9);
  assert.equal(moonExitAt('swallowing',end).enabled,false);
  assert.equal(moonExitAt('complete',end-.01).enabled,false);
+ assert.equal(moonExitAt('complete',end).enabled,false); // 月亮已完全显现，但升起尚未完成。
  assert.deepEqual(moonExitAt('complete',start+c.ending.riseSeconds),{alpha:1,enabled:true});
 });

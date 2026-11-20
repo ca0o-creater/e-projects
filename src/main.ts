@@ -19,6 +19,13 @@ import { loadActTwoAssets } from './characters/fengmeng';
 import {Assets} from 'pixi.js';
 import { destroyScene, SceneLifetime } from './scenes/scene-lifetime';
 import { prologueConfig } from './config/prologue.config';
+import { AudioManager } from './audio/audio-manager';
+import { AudioManager as InteractionAudioManager } from './audio/AudioManager';
+import { PrologueAudioFlow, type PrologueTrack } from './audio/prologue-audio-flow';
+import { Scene2AudioManager } from './audio/scene2-audio-manager';
+import { MortalTransition } from './audio/mortal-transition';
+import { MoonTransition } from './audio/moon-transition';
+import { Scene3AudioManager } from './audio/scene3-audio-manager';
 
 const stage = document.querySelector<HTMLElement>('#stage')!;
 const viewportSize = document.querySelector<HTMLDivElement>('#viewport-size')!;
@@ -49,6 +56,18 @@ let entering = false;
 let input: SceneInputAdapter | undefined;
 let currentScene: ActOneScene | ActTwoScene | ActThreeScene | undefined;
 let lifetime = new SceneLifetime();
+const narration = new AudioManager<PrologueTrack>(prologueConfig.audio.sources);
+const interactionAudio = new InteractionAudioManager();
+interactionAudio.preload();
+let scene2Audio: Scene2AudioManager | undefined = new Scene2AudioManager();
+scene2Audio.preload();
+let scene3Audio: Scene3AudioManager | undefined = new Scene3AudioManager();
+scene3Audio.preload();
+const mortalTransition = new MortalTransition();
+mortalTransition.preload();
+const moonTransition = new MoonTransition();
+moonTransition.preload();
+let prologueAudioFlow: PrologueAudioFlow | undefined;
 const events = new AbortController();
 const eventOptions = { signal: events.signal };
 const params = new URLSearchParams(location.search);
@@ -73,17 +92,53 @@ function syncFullscreen(): void {
   entrance.hidden = active;
   resize();
   if (!ready) return;
-  if (active && !document.hidden && previewTime === null && !['video','ending'].includes(endingFilm?.phase??'')) {
+  const playbackActive = active && !document.hidden && previewTime === null;
+  // 结尾视频独立于已停止的 Pixi ticker，仍需响应全屏和页面可见性。
+  if (playbackActive) endingFilm?.resume();
+  else endingFilm?.pause();
+  if (playbackActive && !['video','ending'].includes(endingFilm?.phase??'')) {
     app?.start();
+    interactionAudio.resume();
+    scene2Audio?.resume();
+    scene3Audio?.resume();
+    mortalTransition.resume();
+    moonTransition.resume();
+    if (currentScene instanceof ActOneScene && !currentScene.isPrologue) interactionAudio.enterScene();
+    void prologueAudioFlow?.resume().catch((error: unknown) => console.error('恢复序章旁白失败', error));
   } else {
+    interactionAudio.pause();
+    scene2Audio?.pause();
+    scene3Audio?.pause();
+    mortalTransition.pause();
+    moonTransition.pause();
     input?.cancel();
     assistInput?.cancel();
+    prologueAudioFlow?.pause();
     app?.stop();
   }
 }
 
 resize();
 window.addEventListener('resize', resize, eventOptions);
+// 预览页可能没有“进入体验”点击；浏览器拦截环境声后用下一次真实输入重试。
+const retrySceneAudio = (event: Event): void => {
+  if (currentScene instanceof ActTwoScene && !stage.hidden && !document.hidden && previewTime === null) {
+    scene2Audio?.retryBlocked();
+  }
+  if (currentScene instanceof ActThreeScene && !stage.hidden && !document.hidden && previewTime === null) {
+    if (endingFilm?.phase === 'video') endingFilm.retryBlocked();
+    else if (endingFilm?.phase === 'ending') {
+      // 重演/回顾按钮的操作会主动停声，避免捕获阶段先短暂补播旁白。
+      if (!(event.target instanceof Element && event.target.closest('.ending-actions, .ending-review'))) endingFilm.retryBlocked();
+    }
+    else if (endingFilm?.phase !== 'disposed') {
+      moonTransition.retryBlocked();
+      scene3Audio?.retryBlocked();
+    }
+  }
+};
+document.addEventListener('pointerdown', retrySceneAudio, { ...eventOptions, capture: true });
+document.addEventListener('keydown', retrySceneAudio, eventOptions);
 document.addEventListener('visibilitychange', syncFullscreen, eventOptions);
 document.addEventListener('fullscreenchange', () => {
   syncFullscreen();
@@ -102,11 +157,17 @@ enterButton.addEventListener('click', async () => {
   entering = true;
   enterButton.disabled = true;
   status.textContent = '';
+  // play 必须直接发生在用户点击调用栈内，才能通过浏览器的自动播放策略。
+  if (currentScene instanceof ActOneScene && currentScene.isPrologue) {
+    if (prologueAudioFlow?.state === 'idle') prologueAudioFlow.start();
+    else void prologueAudioFlow?.resume();
+  }
   try {
     // 在点击处理函数内直接发起请求，保留浏览器要求的用户激活状态。
     await document.documentElement.requestFullscreen();
     syncFullscreen();
   } catch (error: unknown) {
+    prologueAudioFlow?.reset();
     syncFullscreen();
     status.textContent = '未能进入全屏，请允许全屏后再次点击“进入体验”。';
     console.error(error);
@@ -147,6 +208,39 @@ function mountScene(scene:ActOneScene|ActTwoScene|ActThreeScene):void {
   else nextButton.remove(); // 第二、三幕 DOM 中不保留旧转场按钮。
   app.stage.addChild(scene);
   lifetime.add(()=>destroyScene(scene));
+  if(scene instanceof ActOneScene) {
+    const flow = new PrologueAudioFlow(narration, prologueConfig.audio, {
+      showIntro: () => {
+        if(currentScene!==scene||scene.destroyed)return;
+        interactionAudio.stopAllAudio();
+        scene.restartPrologue();
+        renderSceneUI();
+      },
+      showJourney: () => {
+        if(currentScene!==scene||scene.destroyed)return;
+        scene.showJourneyPrologue();
+        renderSceneUI();
+      },
+      beginEnding: () => {
+        if(currentScene!==scene||scene.destroyed)return;
+        scene.beginPrologueEnding();
+        renderSceneUI();
+      },
+      complete: () => {
+        if(currentScene!==scene||scene.destroyed)return;
+        scene.completePrologue();
+        interactionAudio.enterScene();
+        if(stage.hidden || document.hidden) interactionAudio.pause();
+        renderSceneUI();
+      },
+      playbackError: (error, track) => console.error(`序章音轨 ${track} 播放失败`, error),
+    });
+    prologueAudioFlow=flow;
+    lifetime.add(()=>{
+      flow.dispose();
+      if(prologueAudioFlow===flow)prologueAudioFlow=undefined;
+    });
+  }
   if(!(scene instanceof ActOneScene)) lifetime.add(()=>scene.dispose());
   app.ticker.add(scene.update);
   const ticker=app.ticker;
@@ -159,13 +253,47 @@ function mountScene(scene:ActOneScene|ActTwoScene|ActThreeScene):void {
   else input.bind(controller.input,point=>controller.canGrab(point),captureTarget);
   const adapter=input;
   lifetime.add(()=>adapter.unbind()); // 先取消旧幕捕获，再销毁人物；保留全局摄像头和模式。
+  // 逆序清理时先撤销音效订阅、停声，再取消输入，避免离场产生复位音效。
+  lifetime.add(()=>interactionAudio.stopAllAudio());
+  if(scene instanceof ActOneScene) {
+    lifetime.add(scene.handoff.subscribeState((state, previous)=>interactionAudio.onHandoffState(state, previous)));
+  }
+  if(scene instanceof ActTwoScene) {
+    const audio = scene2Audio ?? new Scene2AudioManager();
+    if (!scene2Audio) audio.preload();
+    scene2Audio = audio;
+    // 先暂停再 start，可在静帧/后台挂载时保证零意外播放。
+    if (!ready || stage.hidden || document.hidden || previewTime !== null) audio.pause();
+    else audio.resume();
+    audio.start({ skipIntro: scene.swallow.state !== 'intro', staticPreview: previewTime !== null });
+    lifetime.add(() => {
+      audio.dispose();
+      mortalTransition.stopAllAudio();
+      if (scene2Audio === audio) scene2Audio = undefined;
+    });
+    // lifetime 逆序执行：先注销通知、销毁音频，再由 adapter.unbind 取消手势。
+    lifetime.add(scene.swallow.subscribeState((next, previous) => audio.onState(next, previous)));
+  }
   if(scene instanceof ActThreeScene){
-    const film=new EndingFilm(()=>{stage.dataset.sceneState='ending';input?.dispose();input=undefined;assistInput?.dispose();app?.stop();},
-      ()=>{lifetime.dispose();currentScene=undefined;input=undefined;mountScene(new ActOneScene());syncFullscreen();},
+    // 只有目标幕离场才能停止月亮转场声，绝不能登记到第二幕 lifetime。
+    const audio = scene3Audio ?? new Scene3AudioManager();
+    if (!scene3Audio) audio.preload();
+    scene3Audio = audio;
+    if (!ready || stage.hidden || document.hidden || previewTime !== null) audio.pause();
+    else audio.resume();
+    audio.start(scene.ascent.snapshot, { staticPreview: previewTime !== null });
+    lifetime.add(()=>moonTransition.stopAllAudio());
+    const film=new EndingFilm(()=>{audio.stopAllAudio();moonTransition.stopAllAudio();stage.dataset.sceneState='ending';input?.dispose();input=undefined;assistInput?.dispose();app?.stop();},
+      ()=>{lifetime.dispose();currentScene=undefined;input=undefined;mountScene(new ActOneScene());prologueAudioFlow?.start();syncFullscreen();},
+      ()=>{audio.stopAllAudio();moonTransition.stopAllAudio();},
       ()=>{input?.dispose();input=undefined;assistInput?.dispose();app?.stop();});
     endingFilm=film;lifetime.add(()=>film.dispose());
-    const hold=new HoldButtonAdapter(ascentAssist,()=>{adapter.reset();return scene.ascent.startAssist();},()=>scene.ascent.cancel());
+    if (!ready || stage.hidden || document.hidden || previewTime !== null) film.pause();
+    const hold=new HoldButtonAdapter(ascentAssist,()=>{adapter.reset();return scene.ascent.startAssist();},cancelled=>scene.ascent.cancel(cancelled));
     assistInput=hold;lifetime.add(()=>hold.dispose());
+    // 逆序清理：先注销通知并销毁音频，再释放辅助/手势输入及控制器。
+    lifetime.add(()=>{audio.dispose();if(scene3Audio===audio)scene3Audio=undefined;});
+    lifetime.add(scene.ascent.subscribeState((next,previous,reason)=>audio.onState(next,previous,reason)));
   }
   // 三幕舞台动画全部由 ticker 驱动。
   // 后续音轨、独立计时器必须登记 lifetime.audio / timeout / interval。
@@ -176,12 +304,18 @@ function mountScene(scene:ActOneScene|ActTwoScene|ActThreeScene):void {
       renderSceneUI();
     });
   } else if(scene instanceof ActTwoScene) {
-    scene.once('navigate-to-moon',()=>queueMicrotask(()=>{
-      if(currentScene!==scene||scene.destroyed)return;
-      lifetime.dispose();currentScene=undefined;
-      mountScene(new ActThreeScene());
-      window.dispatchEvent(new CustomEvent('navigate-to-moon'));syncFullscreen();
-    }));
+    const navigateToMoon = (): void => {
+      moonTransition.navigate(
+        () => currentScene === scene && scene.canNavigateToMoon,
+        () => {
+          lifetime.dispose();currentScene=undefined;
+          mountScene(new ActThreeScene());
+          window.dispatchEvent(new CustomEvent('navigate-to-moon'));syncFullscreen();
+        },
+      );
+    };
+    scene.on('navigate-to-moon', navigateToMoon);
+    lifetime.add(() => scene.off('navigate-to-moon', navigateToMoon));
     scene.once('moon-unlocked',()=>{
       adapter.unbind(); // 完成后由 Pixi 月亮/天空点击接管。
       window.dispatchEvent(new CustomEvent('moon-unlocked',{detail:{sceneId:scene.sceneId}}));
@@ -212,6 +346,8 @@ async function main(): Promise<void> {
   // 直接预览第二、三幕后也能重演序章，提前准备其人物纹理。
   await loadRigAssets();
   await loadHouyiWalk();
+  // 预加载失败不阻断画面；流程控制器会在播放失败时自动走降级转场。
+  void narration.preloadAll().catch((error: unknown) => console.error('序章旁白预加载失败', error));
   const directActThree=scenePreview && previewScene==='act-three';
   const scene = directActThree?new ActThreeScene():directActTwo?new ActTwoScene():new ActOneScene();
   if (previewTime !== null) {
@@ -232,7 +368,10 @@ async function main(): Promise<void> {
   mountScene(scene);
   app.ticker.add(renderSceneUI);
   skipButton.addEventListener('click', () => {
-    if (currentScene instanceof ActOneScene) currentScene.skipPrologue();
+    if (currentScene instanceof ActOneScene && currentScene.isPrologue) {
+      if(prologueAudioFlow)prologueAudioFlow.skip();
+      else currentScene.skipPrologue();
+    }
     renderSceneUI();
   }, eventOptions);
   assistButton.addEventListener('click', () => {
@@ -241,16 +380,19 @@ async function main(): Promise<void> {
     renderSceneUI();
   }, eventOptions);
   nextButton.addEventListener('click', () => {
-    const old=currentScene;
-    if(!(old instanceof ActOneScene)||old.handoff.state!=='complete')return;
-    lifetime.dispose();currentScene=undefined;
-    mountScene(new ActTwoScene());
-    window.dispatchEvent(new CustomEvent('navigate-to-mortal'));
-    syncFullscreen();
+    mortalTransition.navigate(
+      () => currentScene instanceof ActOneScene && currentScene.handoff.state === 'complete',
+      () => {
+        lifetime.dispose();currentScene=undefined;
+        mountScene(new ActTwoScene());
+        window.dispatchEvent(new CustomEvent('navigate-to-mortal'));
+        syncFullscreen();
+      },
+    );
   },eventOptions);
   replayButton.addEventListener('click',()=>{
     if(!(currentScene instanceof ActThreeScene)||currentScene.ascent.state!=='complete')return;
-    lifetime.dispose();currentScene=undefined;mountScene(new ActOneScene());syncFullscreen();
+    lifetime.dispose();currentScene=undefined;mountScene(new ActOneScene());prologueAudioFlow?.start();syncFullscreen();
   },eventOptions);
   reviewButton.addEventListener('click',()=>{
     if(!(currentScene instanceof ActThreeScene)||currentScene.ascent.state!=='complete')return;
@@ -259,10 +401,16 @@ async function main(): Promise<void> {
   document.querySelector('#review-close')!.addEventListener('click',()=>{reviewPanel.hidden=true;reviewButton.focus();},eventOptions);
   document.querySelector('#review-content')!.replaceChildren();
   for(const text of scene3Config.review){const p=document.createElement('p');p.textContent=text;document.querySelector('#review-content')!.appendChild(p);}
-  window.addEventListener('pagehide', () => {app?.stop();lifetime.dispose();input?.dispose();input=undefined;currentScene=undefined;}, { once: true, signal: events.signal });
+  window.addEventListener('pagehide', () => {app?.stop();lifetime.dispose();narration.destroy();interactionAudio.dispose();scene2Audio?.dispose();scene3Audio?.dispose();mortalTransition.dispose();moonTransition.dispose();input?.dispose();input=undefined;currentScene=undefined;}, { once: true, signal: events.signal });
   if (import.meta.hot) import.meta.hot.dispose(() => {
     events.abort();
     lifetime.dispose();
+    narration.destroy();
+    interactionAudio.dispose();
+    scene2Audio?.dispose();
+    scene3Audio?.dispose();
+    mortalTransition.dispose();
+    moonTransition.dispose();
     input?.dispose();input=undefined;
     app?.destroy(true, { children: true });
   });

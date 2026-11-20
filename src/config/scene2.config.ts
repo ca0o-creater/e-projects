@@ -19,7 +19,8 @@ export const scene2Config = {
     departureStart: 0.6, departureDuration: 3.8, departureGap: 0.35,
     get approachStart() { return this.departureStart+this.departureDuration+this.departureGap; },
     approachDuration: 4.4,
-    warningHold: 2.2, warningFade: 0.6 },
+    // 入场总长 12 秒，与 scene2-intro.wav 对齐。
+    warningHold: 2.25, warningFade: 0.6 },
   changE,
   characterScale,
   shadow:{radiusX:150*characterScale,radiusY:21*characterScale},

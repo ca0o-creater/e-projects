@@ -2,6 +2,7 @@ import { actTwoConfig as config } from '../config/act-two.ts';
 import type { SemanticInput, StagePoint } from '../input/semantic.ts';
 
 export type SwallowState = 'intro' | 'ready' | 'dragging' | 'armed' | 'returning' | 'swallowing' | 'complete' | 'disposed';
+export interface SwallowSnapshot { readonly state: SwallowState; readonly inTarget: boolean }
 const clamp = (v:number) => Math.max(0,Math.min(1,v));
 const distance = (a:StagePoint,b:StagePoint) => Math.hypot(a.x-b.x,a.y-b.y);
 const ease = (v:number) => { const t=clamp(v); return t*t*(3-2*t); };
@@ -21,6 +22,22 @@ export class SwallowController {
   private emitted=false;
   private onComplete:()=>void;
   constructor(onComplete:()=>void) { this.onComplete=onComplete; }
+  private readonly stateListeners = new Set<(next: SwallowSnapshot, previous: SwallowSnapshot) => void>();
+  private lastSnapshot: SwallowSnapshot = { state: 'intro', inTarget: false };
+
+  subscribeState(listener: (next: SwallowSnapshot, previous: SwallowSnapshot) => void): () => void {
+    if (this.state === 'disposed') return () => {};
+    this.stateListeners.add(listener);
+    return () => { this.stateListeners.delete(listener); };
+  }
+
+  private notifyState(): void {
+    const next = { state: this.state, inTarget: this.inTarget };
+    const previous = this.lastSnapshot;
+    if (next.state === previous.state && next.inTarget === previous.inTarget) return;
+    this.lastSnapshot = next;
+    for (const listener of this.stateListeners) listener(next, previous);
+  }
 
   pointAt(progress:number):StagePoint {
     const a=config.arm, angle=a.startAngle+(a.endAngle-a.startAngle)*clamp(progress);
@@ -39,12 +56,15 @@ export class SwallowController {
       default: return this.retry ? '请重新尝试：拖动手腕光圈，抬至面部后停稳' : '拖动手腕光圈抬臂，送至面部后按住停稳';
     }
   }
-  prepare():void { if(this.state==='intro') this.state='ready'; }
+  prepare():void { if(this.state==='intro') { this.state='ready'; this.notifyState(); } }
   canGrab(point:StagePoint):boolean {
     return this.state==='ready' && Number.isFinite(point.x) && Number.isFinite(point.y)
       && distance(point,this.point)<=config.arm.grabRadius;
   }
   readonly input=(event:SemanticInput):void=>{
+    try { this.handleInput(event); } finally { this.notifyState(); }
+  };
+  private handleInput(event:SemanticInput):void {
     if(this.state==='disposed') return;
     if(event.type==='MOVE' && event.motionPoint && (!Number.isFinite(event.motionPoint.x)||!Number.isFinite(event.motionPoint.y))) {
       this.input({type:'RELEASE',cancelled:true});return;
@@ -74,9 +94,12 @@ export class SwallowController {
       } else { this.state='returning';this.retry=!event.cancelled; }
       this.resetHold(null);
     }
-  };
+  }
   private resetHold(point:StagePoint|null):void { this.targetDistance=point?distance(point,this.targetCenter):Infinity;this.holdElapsed=0; }
   update(dt:number):void {
+    try { this.advance(dt); } finally { this.notifyState(); }
+  }
+  private advance(dt:number):void {
     if(!Number.isFinite(dt) || dt<=0 || this.state==='disposed') return;
     if(this.state==='dragging' && this.inTarget) {
       this.holdElapsed+=dt;
@@ -93,5 +116,8 @@ export class SwallowController {
       }
     }
   }
-  dispose():void { this.state='disposed';this.resetHold(null);this.onComplete=()=>{}; }
+  dispose():void {
+    this.state='disposed';this.resetHold(null);this.onComplete=()=>{};
+    this.notifyState();this.stateListeners.clear();
+  }
 }

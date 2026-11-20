@@ -3,6 +3,15 @@
 // 坐标为 1920×1080 舞台逻辑像素；时间单位为秒。
 export const prologueConfig = {
   stage: { width: 1920, height: 1080 },
+  audio: {
+    // 仓库当前提供的是 WAV；若换成 MP3，只需修改这里的两个 URL。
+    sources: {
+      intro: '/audio/intro_voice.wav',
+      journey: '/audio/journey_voice.wav',
+    },
+    introGapMs: 1500,
+    endingGapMs: 2000,
+  },
   colors: {
     text: '#3e2723', // 深褐色，压在米黄宣纸上有足够对比度。
     shadow: '#2a1a12',
